@@ -680,7 +680,10 @@ class OpenRouterChat {
                 // 注意：这里的 this.searchApiUrl 需要在 constructor 中定义好
                 const response = await fetch(this.searchApiUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.apiKey}`  
+                    },
                     body: JSON.stringify({
                         query: message,
                         model: this.currentModel // 将当前选择的模型也传递给后端

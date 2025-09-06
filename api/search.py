@@ -1,4 +1,4 @@
-# 文件路径: /api/search.py
+# /api/search.py (修改后的代码)
 
 import os
 from flask import Flask, request, jsonify
@@ -6,21 +6,22 @@ from flask_cors import CORS
 from duckduckgo_search import DDGS
 from openai import OpenAI
 
-# 初始化 Flask 应用
 app = Flask(__name__)
 CORS(app)
 
-# 初始化 OpenRouter 客户端 (只保留 base_url 和 api_key)
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ.get("OPENROUTER_API_KEY")
-)
-
 @app.route('/api/search', methods=['POST'])
 def search_handler():
+    # --- 1. 从请求头获取 API Key ---
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({"error": "请求头中缺少有效的 API Key"}), 401
+    
+    api_key = auth_header.split(' ')[1]
+
+    # --- 2. 获取 JSON 数据 ---
     data = request.get_json()
     if not data:
-        return jsonify({"error": "Invalid JSON"}), 400
+        return jsonify({"error": "无效的 JSON"}), 400
 
     query = data.get('query')
     model = data.get('model')
@@ -28,6 +29,18 @@ def search_handler():
     if not query or not model:
         return jsonify({"error": "请求中必须包含 'query' 和 'model'"}), 400
 
+    # --- 3. 使用获取到的 api_key 初始化客户端 ---
+    try:
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key  # 使用从请求中得到的 key
+         )
+    except Exception as e:
+        # 捕获初始化时可能出现的错误
+        print(f'OpenAI 客户端初始化失败: {e}')
+        return jsonify({"error": f"AI 客户端初始化失败: {e}"}), 500
+
+    # --- 后续的搜索和调用逻辑 (保持不变) ---
     context = "--- 未从网络上搜索到直接相关的背景信息 ---\n"
     search_failed = False
 
@@ -67,4 +80,6 @@ def search_handler():
 
     except Exception as e:
         print(f'调用 OpenRouter 时发生错误: {e}')
-        return jsonify({"error": "调用 AI 模型时发生内部错误。"}), 500
+        # 提供更具体的错误信息给前端
+        return jsonify({"error": f"调用 AI 模型时发生内部错误: {str(e)}"}), 500
+
