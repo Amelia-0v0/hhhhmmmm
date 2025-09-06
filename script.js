@@ -2,7 +2,7 @@ class OpenRouterChat {
     // script.js -> class OpenRouterChat -> constructor
 
 constructor() {
-    this.searchApiUrl = '/api/search'; // 部署后需要替换成你自己的 Vercel URL
+    this.searchApiUrl = 'http://127.0.0.1:5001/api/search'; // 部署后需要替换成你自己的 Vercel URL
     this.apiKey = localStorage.getItem('openrouter_api_key') || '';
     this.currentModel = '';
     this.availableModels = [];
