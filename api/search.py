@@ -10,10 +10,10 @@ from openai import OpenAI
 app = Flask(__name__)
 CORS(app)
 
-# 初始化 OpenRouter 客户端 (使用正确的 'base_url' 参数)
+# 初始化 OpenRouter 客户端 (只保留 base_url 和 api_key)
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ.get("OPENROUTER_API_KEY"),
+    api_key=os.environ.get("OPENROUTER_API_KEY")
 )
 
 @app.route('/api/search', methods=['POST'])
