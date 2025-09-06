@@ -2,17 +2,15 @@
 
 import os
 from flask import Flask, request, jsonify
-from flask_cors import CORS # 导入CORS库，处理跨域更方便
+from flask_cors import CORS
 from duckduckgo_search import DDGS
 from openai import OpenAI
 
 # 初始化 Flask 应用
 app = Flask(__name__)
-# 为整个应用配置CORS，允许所有来源
 CORS(app)
 
-# 初始化 OpenRouter 客户端
-# 它会从 Vercel 的环境变量中自动读取 OPENROUTER_API_KEY
+# 初始化 OpenRouter 客户端 (使用正确的 'base_url' 参数)
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.environ.get("OPENROUTER_API_KEY"),
@@ -44,13 +42,13 @@ def search_handler():
     except Exception as e:
         print(f'DuckDuckGo 搜索失败，将跳过搜索步骤: {e}')
         search_failed = True
-
+    
     context += "--- 背景信息结束 ---\n\n"
 
     try:
         system_prompt = "你是一个强大的 AI 助手。请根据下面提供的实时背景信息来回答用户的问题。请优先、深入地利用这些信息，并进行合理的总结与推理。如果背景信息不足或没有提供，请直接利用你自身的知识进行回答。"
         final_prompt = f"{context}请基于以上信息，回答这个问题: \"{query}\""
-
+        
         print(f"正在使用模型 {model} 调用 OpenRouter...")
         completion = client.chat.completions.create(
             model=model,
@@ -70,5 +68,3 @@ def search_handler():
     except Exception as e:
         print(f'调用 OpenRouter 时发生错误: {e}')
         return jsonify({"error": "调用 AI 模型时发生内部错误。"}), 500
-
-# Vercel 会自动处理 Flask 应用的路由，所以不需要 app.run()
