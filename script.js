@@ -1,88 +1,43 @@
 class OpenRouterChat {
-    constructor() {
-        this.searchApiUrl = '/api/search'; // 部署后需要替换成你自己的 Vercel URL
-        this.apiKey = localStorage.getItem('openrouter_api_key') || '';
-        this.currentModel = '';
-        this.availableModels = [];
-        this.isLoading = false;
-        
-        // 会话管理
-        this.conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
-        this.currentConversationId = null;
-        this.conversationsPerPage = 20;
-        this.conversationsLoaded = 0;
-        
-        // 备忘录设置
-        this.memoSettings = {
-            messageThreshold: parseInt(localStorage.getItem('memo_message_threshold')) || 20,
-            keepRecentMessages: parseInt(localStorage.getItem('memo_keep_recent')) || 10,
-            autoMemoEnabled: localStorage.getItem('memo_auto_enabled') !== 'false'
-        };
-        
-        // 角色设置
-        this.currentRole = JSON.parse(localStorage.getItem('ai_role_setting') || 'null') || this.getDefaultRole();
-        this.roleTemplates = this.getRoleTemplates();
-        
-        this.initializeElements();
-        this.bindEvents();
-        this.loadApiKey();
-        this.loadModels();
-        this.loadConversations();
-        this.updateRoleDisplay();
-        
-        // 如果没有会话，创建第一个
-        if (this.conversations.length === 0) {
-            this.createNewConversation();
-        }
-        /**
-     * 在聊天界面创建一个空的、带模型徽章的消息框，用于后续填充流式内容。
-     * @param {string} role - 角色 ('assistant' 或 'user')
-     * @param {string|null} model - 模型名称
-     * @returns {HTMLElement} 创建的消息框元素
-     */
-    createEmptyMessage(role, model = null) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message message-${role}`;
-        
-        if (role === 'assistant' && model) {
-            const messageHeader = document.createElement('div');
-            messageHeader.className = 'message-header';
-            messageHeader.innerHTML = `<span class="model-badge">${model}</span>`;
-            messageDiv.appendChild(messageHeader);
-        }
-        
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content';
-        
-        const messageText = document.createElement('span');
-        messageText.className = 'message-text';
-        messageText.textContent = '▋'; // 用一个闪烁的光标作为初始内容
-        
-        messageContent.appendChild(messageText);
-        messageDiv.appendChild(messageContent);
-        
-        // 移除欢迎消息（如果存在）
-        const welcomeMessage = this.elements.chatMessages.querySelector('.welcome-message');
-        if (welcomeMessage) welcomeMessage.remove();
-        
-        this.elements.chatMessages.appendChild(messageDiv);
-        this.scrollToBottom();
-        
-        return messageDiv;
-    }
+    // script.js -> class OpenRouterChat -> constructor
 
-    /**
-     * 仅将消息内容添加到当前会话的历史记录中，不创建新的UI元素。
-     * 用于在流式响应结束后，一次性保存完整回答。
-     * @param {string} role - 角色
-     * @param {string} content - 消息内容
-     */
-    addMessageToHistory(role, content) {
-        const conversation = this.getCurrentConversation();
-        if (!conversation) return;
-        conversation.messages.push({ role, content });
+constructor() {
+    this.searchApiUrl = '/api/search'; // 部署后需要替换成你自己的 Vercel URL
+    this.apiKey = localStorage.getItem('openrouter_api_key') || '';
+    this.currentModel = '';
+    this.availableModels = [];
+    this.isLoading = false;
+    
+    // 会话管理
+    this.conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
+    this.currentConversationId = null;
+    this.conversationsPerPage = 20;
+    this.conversationsLoaded = 0;
+    
+    // 备忘录设置
+    this.memoSettings = {
+        messageThreshold: parseInt(localStorage.getItem('memo_message_threshold')) || 20,
+        keepRecentMessages: parseInt(localStorage.getItem('memo_keep_recent')) || 10,
+        autoMemoEnabled: localStorage.getItem('memo_auto_enabled') !== 'false'
+    };
+    
+    // 角色设置
+    this.currentRole = JSON.parse(localStorage.getItem('ai_role_setting') || 'null') || this.getDefaultRole();
+    this.roleTemplates = this.getRoleTemplates();
+    
+    this.initializeElements();
+    this.bindEvents();
+    this.loadApiKey();
+    this.loadModels();
+    this.loadConversations();
+    this.updateRoleDisplay();
+    
+    // 如果没有会话，创建第一个
+    if (this.conversations.length === 0) {
+        this.createNewConversation();
     }
-    }
+} // <--- 构造函数在这里正确地结束了！
+
 
     initializeElements() {
         this.elements = {
@@ -962,7 +917,56 @@ class OpenRouterChat {
         
         return messageContent; // 返回创建的元素，方便后续更新内容
     }
+     /**
+     * 在聊天界面创建一个空的、带模型徽章的消息框，用于后续填充流式内容。
+     * @param {string} role - 角色 ('assistant' 或 'user')
+     * @param {string|null} model - 模型名称
+     * @returns {HTMLElement} 创建的消息框元素
+     */
+     createEmptyMessage(role, model = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message message-${role}`;
+        
+        if (role === 'assistant' && model) {
+            const messageHeader = document.createElement('div');
+            messageHeader.className = 'message-header';
+            messageHeader.innerHTML = `<span class="model-badge">${model}</span>`;
+            messageDiv.appendChild(messageHeader);
+        }
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        
+        const messageText = document.createElement('span');
+        messageText.className = 'message-text';
+        messageText.textContent = '▋'; // 用一个闪烁的光标作为初始内容
+        
+        messageContent.appendChild(messageText);
+        messageDiv.appendChild(messageContent);
+        
+        // 移除欢迎消息（如果存在）
+        const welcomeMessage = this.elements.chatMessages.querySelector('.welcome-message');
+        if (welcomeMessage) welcomeMessage.remove();
+        
+        this.elements.chatMessages.appendChild(messageDiv);
+        this.scrollToBottom();
+        
+        return messageDiv;
     }
+
+    /**
+     * 仅将消息内容添加到当前会话的历史记录中，不创建新的UI元素。
+     * 用于在流式响应结束后，一次性保存完整回答。
+     * @param {string} role - 角色
+     * @param {string} content - 消息内容
+     */
+    addMessageToHistory(role, content) {
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+        conversation.messages.push({ role, content });
+    }
+    
+    
 
     addMessageToUI(role, content, model = null, messageIndex = null) {
         // 创建消息元素（不添加到会话历史）
