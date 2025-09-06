@@ -1389,3 +1389,21 @@ body {
         padding: 12px 16px;
     }
 }
+/* styles.css (在文件末尾添加) */
+
+.system-message {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.search-context-box {
+    white-space: pre-wrap;
+    font-size: 12px;
+    max-height: 100px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 8px;
+    text-align: left;
+    color: #4a5568;
+}

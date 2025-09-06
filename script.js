@@ -34,6 +34,54 @@ class OpenRouterChat {
         if (this.conversations.length === 0) {
             this.createNewConversation();
         }
+        /**
+     * 在聊天界面创建一个空的、带模型徽章的消息框，用于后续填充流式内容。
+     * @param {string} role - 角色 ('assistant' 或 'user')
+     * @param {string|null} model - 模型名称
+     * @returns {HTMLElement} 创建的消息框元素
+     */
+    createEmptyMessage(role, model = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message message-${role}`;
+        
+        if (role === 'assistant' && model) {
+            const messageHeader = document.createElement('div');
+            messageHeader.className = 'message-header';
+            messageHeader.innerHTML = `<span class="model-badge">${model}</span>`;
+            messageDiv.appendChild(messageHeader);
+        }
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        
+        const messageText = document.createElement('span');
+        messageText.className = 'message-text';
+        messageText.textContent = '▋'; // 用一个闪烁的光标作为初始内容
+        
+        messageContent.appendChild(messageText);
+        messageDiv.appendChild(messageContent);
+        
+        // 移除欢迎消息（如果存在）
+        const welcomeMessage = this.elements.chatMessages.querySelector('.welcome-message');
+        if (welcomeMessage) welcomeMessage.remove();
+        
+        this.elements.chatMessages.appendChild(messageDiv);
+        this.scrollToBottom();
+        
+        return messageDiv;
+    }
+
+    /**
+     * 仅将消息内容添加到当前会话的历史记录中，不创建新的UI元素。
+     * 用于在流式响应结束后，一次性保存完整回答。
+     * @param {string} role - 角色
+     * @param {string} content - 消息内容
+     */
+    addMessageToHistory(role, content) {
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+        conversation.messages.push({ role, content });
+    }
     }
 
     initializeElements() {
@@ -647,9 +695,8 @@ class OpenRouterChat {
     
     async sendMessage() {
         const message = this.elements.messageInput.value.trim();
-        const useSearch = this.elements.searchToggle.checked; // 检查搜索开关是否开启
+        const useSearch = this.elements.searchToggle.checked;
 
-        // 基础校验，确保可以发送消息
         if (!message || !this.currentModel || !this.apiKey || this.isLoading) return;
 
         const conversation = this.getCurrentConversation();
@@ -658,91 +705,118 @@ class OpenRouterChat {
             return;
         }
 
-        // 进入加载状态，禁用输入和发送按钮
         this.isLoading = true;
         this.elements.messageInput.value = '';
-        this.autoResizeTextarea(); // 清空后重置文本框高度
+        this.autoResizeTextarea();
         this.elements.sendButton.disabled = true;
 
-        // 立即在界面上显示用户的消息
+        // 1. 在界面上显示用户的消息
         this.addMessage('user', message);
         
-        // 显示“正在输入”动画
-        this.showTypingIndicator();
-
         try {
-            let responseContent = '';
-
             if (useSearch) {
-                // --- 分支1: 如果开启了搜索，调用我们的后端 API ---
-                this.updateStatus('正在联网搜索信息...'); // 更新状态栏提示
+                // --- 分支1: 流式联网搜索 ---
                 
-                // 注意：这里的 this.searchApiUrl 需要在 constructor 中定义好
+                // 2. 创建一个临时的 div 用于实时显示后端状态
+                const statusDiv = this.addSystemMessage('正在初始化连接...');
+                
+                // 3. 创建一个空的 AI 消息框，用于后续逐字填充内容
+                const aiMessageDiv = this.createEmptyMessage('assistant', this.currentModel);
+                const aiMessageContent = aiMessageDiv.querySelector('.message-text');
+                
+                // 4. 发送请求
                 const response = await fetch(this.searchApiUrl, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.apiKey}`  
+                        'Authorization': `Bearer ${this.apiKey}`
                     },
-                    body: JSON.stringify({
-                        query: message,
-                        model: this.currentModel // 将当前选择的模型也传递给后端
-                    }),
+                    body: JSON.stringify({ query: message, model: this.currentModel }),
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({})); // 尝试解析错误信息
-                    throw new Error(errorData.error || `搜索服务返回 HTTP ${response.status}`);
+                    const errorText = await response.text();
+                    throw new Error(`服务返回错误 ${response.status}: ${errorText}`);
                 }
-                const data = await response.json();
-                responseContent = data.answer;
+
+                // 5. 开始处理流式响应
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let buffer = '';
+                let fullResponse = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break; // 如果流结束，退出循环
+
+                    // 将接收到的二进制数据块解码为字符串，并追加到缓冲区
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // 按 SSE 的格式 (两个换行符) 分割事件
+                    const eventStrings = buffer.split('\n\n');
+                    buffer = eventStrings.pop(); // 最后一个可能不完整，放回缓冲区等待下次处理
+
+                    for (const eventString of eventStrings) {
+                        if (!eventString.startsWith('event: ')) continue;
+
+                        // 解析单个事件
+                        const eventLine = eventString.split('\n')[0];
+                        const dataLine = eventString.split('\n')[1];
+                        const eventType = eventLine.substring(7);
+                        const data = JSON.parse(dataLine.substring(6));
+
+                        // 根据不同的事件类型，更新不同的界面元素
+                        if (eventType === 'status') {
+                            statusDiv.textContent = `[状态] ${data.message}`;
+                        } else if (eventType === 'search_results') {
+                            statusDiv.innerHTML = `[状态] 已找到网络信息，正在总结...  
+<pre class="search-context-box">${data.context}</pre>`;
+                        } else if (eventType === 'llm_chunk') {
+                            fullResponse += data.content;
+                            aiMessageContent.textContent = "🌐 (联网) " + fullResponse + '▋'; // 添加光标效果
+                            this.scrollToBottom();
+                        } else if (eventType === 'error') {
+                            throw new Error(data.message);
+                        } else if (eventType === 'done') {
+                            // 流结束，移除光标
+                            aiMessageContent.textContent = "🌐 (联网) " + fullResponse;
+                        }
+                    }
+                }
+                
+                // 6. 流结束后，将完整的回答保存到会话历史记录中
+                this.addMessageToHistory('assistant', "🌐 (联网) " + fullResponse);
+                statusDiv.remove(); // 任务完成，移除状态提示
 
             } else {
-                // --- 分支2: 如果未开启搜索，使用你原来的直接调用 OpenRouter 的逻辑 ---
-                this.updateStatus('正在思考...');
-                responseContent = await this.callOpenRouterAPI(message, conversation);
+                // --- 分支2: 普通非流式调用 (保持不变) ---
+                this.showTypingIndicator();
+                const responseContent = await this.callOpenRouterAPI(message, conversation);
+                this.hideTypingIndicator();
+                this.addMessage('assistant', responseContent, this.currentModel);
             }
 
-            // 成功获取到回答后，隐藏“正在输入”动画
-            this.hideTypingIndicator();
-
-            // 在 AI 的回答前加上一个小图标，以视觉上区分是否联网
-            const prefix = useSearch ? '🌐 (联网) ' : '';
-            this.addMessage('assistant', prefix + responseContent, this.currentModel);
-
             // --- 后续的会话管理逻辑 (保持不变) ---
-
-            // 如果是新会话的第一条消息，自动根据消息内容重命名会话标题
             if (conversation.messages.length === 2 && conversation.title === '新会话') {
                 conversation.title = message.length > 30 ? message.substring(0, 30) + '...' : message;
                 this.elements.chatTitle.textContent = conversation.title;
             }
-            
-            // 更新会话的最后修改时间及所用模型
             conversation.updatedAt = new Date().toISOString();
             conversation.model = this.currentModel;
-
-            // 保存所有会话到本地存储
             this.saveConversations();
-
-            // 重新加载左侧的会话列表以更新预览和顺序
             this.loadConversations();
             
-            // 检查是否满足条件以自动生成备忘录
-            if (this.memoSettings.autoMemoEnabled && conversation.messages.length >= this.memoSettings.messageThreshold) {
-                await this.generateMemoAutomatically(conversation);
-            }
-
         } catch (error) {
-            // 如果发生任何错误，隐藏“正在输入”动画并显示错误信息
-            this.hideTypingIndicator();
             this.showError(`发送消息失败: ${error.message}`);
+            // 确保任何残留的UI元素被清理
+            const statusDiv = document.querySelector('.message.system-message');
+            if (statusDiv) statusDiv.remove();
+            this.hideTypingIndicator();
         } finally {
-            // 无论成功或失败，最后都恢复应用的正常状态
             this.isLoading = false;
-            this.enableSendButton(); // 重新启用发送按钮
-            this.updateStatus('模型已就绪'); // 更新状态栏提示
-            this.elements.messageInput.focus(); // 让用户可以继续输入
+            this.enableSendButton();
+            this.updateStatus('模型已就绪');
+            this.elements.messageInput.focus();
         }
     }
 
@@ -868,7 +942,8 @@ class OpenRouterChat {
 
     addSystemMessage(content) {
         const messageDiv = document.createElement('div');
-        messageDiv.className = 'message';
+        // 给系统消息一个特殊的类名，方便查找和移除
+        messageDiv.className = 'message system-message'; 
         messageDiv.style.textAlign = 'center';
         messageDiv.style.margin = '10px 0';
         
@@ -884,6 +959,9 @@ class OpenRouterChat {
         messageDiv.appendChild(messageContent);
         this.elements.chatMessages.appendChild(messageDiv);
         this.scrollToBottom();
+        
+        return messageContent; // 返回创建的元素，方便后续更新内容
+    }
     }
 
     addMessageToUI(role, content, model = null, messageIndex = null) {
