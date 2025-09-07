@@ -23,6 +23,7 @@ constructor() {
     
     // 角色设置
     this.currentRole = JSON.parse(localStorage.getItem('ai_role_setting') || 'null') || this.getDefaultRole();
+    this.customRoles = JSON.parse(localStorage.getItem('custom_roles') || '[]');
     this.roleTemplates = this.getRoleTemplates();
     
     this.initializeElements();
@@ -87,6 +88,8 @@ constructor() {
             // 角色相关
             roleSelect: document.getElementById('roleSelect'),
             roleDescription: document.getElementById('roleDescription'),
+            customRolesGrid: document.getElementById('customRolesGrid'),
+    roleFormTitle: document.getElementById('roleFormTitle'),
             roleBtn: document.getElementById('roleBtn'),
             currentRoleName: document.getElementById('currentRoleName'),
             roleModal: document.getElementById('roleModal'),
@@ -242,20 +245,18 @@ constructor() {
     }
 
     showRoleModal() {
-        // 填充当前角色信息
-        this.elements.roleName.value = this.currentRole.name;
-        this.elements.roleDescription.value = this.currentRole.description;
+        this.renderCustomRoles(); // 渲染自定义角色列表
+        this.resetRoleForm();     // 重置表单为“创建”模式
         
-        // 绑定模板按钮事件
-        this.bindTemplateButtons();
+        if (!this.roleTemplatesBound) {
+            this.bindTemplateButtons();
+            this.roleTemplatesBound = true;
+        }
         
-        // 显示模态框
         this.elements.roleModal.style.display = 'flex';
-        
-        // 设置当前活跃的模板
-        this.setActiveTemplate();
+        this.setActiveTemplate(); // 保持预设模板的高亮逻辑
     }
-
+    
     bindTemplateButtons() {
         const templateBtns = document.querySelectorAll('.template-btn');
         templateBtns.forEach(btn => {
@@ -266,17 +267,27 @@ constructor() {
     }
 
     setActiveTemplate() {
-        // 检查当前角色是否匹配某个模板
-        const templateBtns = document.querySelectorAll('.template-btn');
-        templateBtns.forEach(btn => {
+        // 1. 处理预设模板
+        let matchedPreset = false;
+        document.querySelectorAll('.template-btn').forEach(btn => {
             const template = this.roleTemplates[btn.dataset.template];
-            if (template && template.name === this.currentRole.name && template.description === this.currentRole.description) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
+            const isActive = template && template.name === this.currentRole.name && template.description === this.currentRole.description;
+            btn.classList.toggle('active', isActive);
+            if (isActive) matchedPreset = true;
         });
+    
+        // 2. 处理自定义角色
+        document.querySelectorAll('.custom-role-card').forEach(card => {
+            const isActive = this.currentRole.id === card.dataset.roleId;
+            card.classList.toggle('active', isActive);
+        });
+    
+        // 3. 如果当前角色是自定义角色，则清空表单
+        if (!matchedPreset) {
+            // this.resetRoleForm(); // 可以在这里决定是否清空表单
+        }
     }
+    
 
     hideRoleModal() {
         this.elements.roleModal.style.display = 'none';
@@ -285,23 +296,130 @@ constructor() {
     saveRole() {
         const roleName = this.elements.roleName.value.trim();
         const roleDescription = this.elements.roleDescription.value.trim();
-        
+        const mode = this.elements.saveRoleBtn.dataset.mode;
+        const roleId = this.elements.saveRoleBtn.dataset.id;
+    
         if (!roleName || !roleDescription) {
             this.showError('角色名称和描述不能为空');
             return;
         }
-        
-        this.currentRole = {
-            name: roleName,
-            description: roleDescription
-        };
-        
-        this.updateRoleDisplay();
-        this.saveCurrentRole();
-        this.hideRoleModal();
-        
-        this.addSystemMessage(`🎭 角色已更新为: ${roleName}`);
+    
+        if (mode === 'create') {
+            // 创建新角色
+            const newRole = {
+                id: Date.now().toString(),
+                name: roleName,
+                description: roleDescription
+            };
+            this.customRoles.push(newRole);
+            this.addSystemMessage(`🎭 新角色已创建: ${roleName}`);
+        } else if (mode === 'edit') {
+            // 更新现有角色
+            const roleToUpdate = this.customRoles.find(r => r.id === roleId);
+            if (roleToUpdate) {
+                roleToUpdate.name = roleName;
+                roleToUpdate.description = roleDescription;
+                this.addSystemMessage(`🎭 角色已更新: ${roleName}`);
+            }
+        }
+    
+        this.saveCustomRoles(); // 保存到 localStorage
+        this.renderCustomRoles(); // 重新渲染列表
+        this.resetRoleForm(); // 清空并重置表单
     }
+    saveCustomRoles() {
+        localStorage.setItem('custom_roles', JSON.stringify(this.customRoles));
+    }
+    
+    renderCustomRoles() {
+        const grid = this.elements.customRolesGrid;
+        grid.innerHTML = ''; // 清空现有列表
+    
+        this.customRoles.forEach(role => {
+            const card = document.createElement('div');
+            card.className = 'custom-role-card';
+            card.dataset.roleId = role.id;
+    
+            // 检查当前角色是否是这个自定义角色，以添加 active 状态
+            if (this.currentRole.id === role.id) {
+                card.classList.add('active');
+            }
+    
+            card.innerHTML = `
+                <div class="template-name">${role.name}</div>
+                <div class="template-desc">${role.description.substring(0, 40)}...</div>
+                <div class="custom-role-actions">
+                    <button class="custom-role-btn edit-role-btn" title="编辑角色">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="custom-role-btn delete-role-btn" title="删除角色">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6V20a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2V6"></path></svg>
+                    </button>
+                </div>
+            `;
+    
+            // 绑定事件
+            card.addEventListener('click', (e) => {
+                if (!e.target.closest('.custom-role-actions')) {
+                    this.selectCustomRole(role.id);
+                }
+            });
+            card.querySelector('.edit-role-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.startEditRole(role.id);
+            });
+            card.querySelector('.delete-role-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.deleteRole(role.id);
+            });
+    
+            grid.appendChild(card);
+        });
+    }
+    
+    selectCustomRole(roleId) {
+        const role = this.customRoles.find(r => r.id === roleId);
+        if (role) {
+            this.currentRole = { ...role }; // 关键：确保 currentRole 有 id
+            this.updateRoleDisplay();
+            this.saveCurrentRole();
+            this.addSystemMessage(`🎭 角色已切换为: ${role.name}`);
+            this.hideRoleModal();
+        }
+    }
+    
+    startEditRole(roleId) {
+        const role = this.customRoles.find(r => r.id === roleId);
+        if (role) {
+            this.elements.roleFormTitle.textContent = '编辑角色';
+            this.elements.roleName.value = role.name;
+            this.elements.roleDescription.value = role.description;
+            this.elements.saveRoleBtn.dataset.mode = 'edit';
+            this.elements.saveRoleBtn.dataset.id = roleId;
+            this.elements.roleName.focus();
+        }
+    }
+    
+    deleteRole(roleId) {
+        if (confirm('确定要删除这个自定义角色吗？')) {
+            this.customRoles = this.customRoles.filter(r => r.id !== roleId);
+            this.saveCustomRoles();
+            this.renderCustomRoles();
+            // 如果删除的是当前角色，则重置为默认角色
+            if (this.currentRole.id === roleId) {
+                this.resetRole();
+            }
+        }
+    }
+    
+    resetRoleForm() {
+        this.elements.roleFormTitle.textContent = '创建新角色';
+        this.elements.roleName.value = '';
+        this.elements.roleDescription.value = '';
+        this.elements.saveRoleBtn.dataset.mode = 'create';
+        this.elements.saveRoleBtn.dataset.id = '';
+    }
+    
 
     resetRole() {
         this.currentRole = this.getDefaultRole();
