@@ -673,7 +673,7 @@ constructor() {
                 // --- 分支1: 流式联网搜索 ---
                 
                 // 2. 创建一个临时的 div 用于实时显示后端状态
-                 statusDiv = this.addSystemMessage('正在初始化连接...');
+                const statusDiv = this.addSystemMessage('正在初始化连接...');
                 
                 // 3. 创建一个空的 AI 消息框，用于后续逐字填充内容
                 const aiMessageDiv = this.createEmptyMessage('assistant', this.currentModel);
@@ -726,7 +726,12 @@ constructor() {
                         } else if (eventType === 'search_results') {
                             statusDiv.innerHTML = `[状态] 已找到网络信息，正在总结...  
 <pre class="search-context-box">${data.context}</pre>`;
+                            statusDiv.classList.add('search-results-displayed');
                         } else if (eventType === 'llm_chunk') {
+                            if (statusDiv.classList.contains('search-results-displayed')) { // 👈 添加
+                                statusDiv.textContent = '[状态] AI 正在基于网络信息回答...';      // 👈 添加
+                                statusDiv.classList.remove('search-results-displayed');   // 👈 添加
+                            }      
                             fullResponse += data.content;
                             aiMessageContent.textContent = "🌐 (联网) " + fullResponse + '▋'; // 添加光标效果
                             this.scrollToBottom();
@@ -735,8 +740,6 @@ constructor() {
                         } else if (eventType === 'done') {
                             // 流结束，移除光标
                             aiMessageContent.textContent = "🌐 (联网) " + fullResponse;
-                            // 将状态框的最终文本设置为完成状态
-    statusDiv.textContent = `[状态] 已完成联网搜索。回答生成于 ${new Date().toLocaleTimeString()}`;
                         }
                     }
                 }
@@ -767,7 +770,7 @@ constructor() {
             this.showError(`发送消息失败: ${error.message}`);
             // 确保任何残留的UI元素被清理
             const statusDiv = document.querySelector('.message.system-message');
-            if (statusDiv) statusDiv.remove();
+           // if (statusDiv) statusDiv.remove();
             this.hideTypingIndicator();
         } finally {
             this.isLoading = false;
