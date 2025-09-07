@@ -13,11 +13,13 @@ body {
 }
 
 .app-container {
-    display: flex;
+    display: grid; /* 修改: 从 flex 改为 grid */
+    grid-template-columns: 320px 1fr; /* 新增: 定义两列，左侧固定320px，右侧自动填满 */
     height: 100vh;
     width: 100vw;
     background: white;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    transition: grid-template-columns 0.3s ease-in-out; /* 新增: 为列宽变化添加动画 */
 }
 
 /* 左侧边栏样式 */
@@ -229,6 +231,7 @@ body {
     flex-direction: column;
     background: #fafbfc;
     overflow: hidden;
+    position: relative; /* <--- 添加这一行 */
 }
 
 .header {
@@ -1495,3 +1498,82 @@ body {
     background: rgba(0, 0, 0, 0.1);
     color: #2d3748;
 }
+/* 新的侧边栏切换按钮样式 */
+.sidebar-toggle-btn {
+    position: absolute; /* 使用绝对定位，脱离文档流 */
+    top: 20px;
+    left: -16px; /* 初始位置，一半在侧边栏，一半在外面 */
+    z-index: 1100; /* 确保在最上层 */
+    
+    width: 32px;
+    height: 32px;
+    background: #764ba2; /* 使用侧边栏的深色，对比更清晰 */
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease-in-out;
+}
+
+.sidebar-toggle-btn:hover {
+    transform: scale(1.1);
+    background: #667eea;
+}
+
+.sidebar-toggle-btn svg {
+    transition: transform 0.3s ease-in-out;
+}
+/* 当侧边栏收起时的核心样式 (Grid 版本) */
+.app-container.sidebar-collapsed {
+    grid-template-columns: 0 1fr; /* 关键修改: 将第一列（侧边栏）的宽度直接设为 0 */
+}
+
+.app-container.sidebar-collapsed .sidebar {
+    overflow: hidden; /* 保持内容隐藏 */
+    padding: 0; /* 移除内边距 */
+}
+
+/* 新的侧边栏切换按钮样式 */
+.sidebar-toggle-btn {
+    position: absolute;
+    top: 20px;
+    left: 304px; /* 修改: 初始位置为 320px - 16px */
+    z-index: 1100;
+    
+    width: 32px;
+    height: 32px;
+    background: #764ba2;
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease-in-out;
+}
+
+.sidebar-toggle-btn:hover {
+    transform: scale(1.1);
+    background: #667eea;
+}
+
+.sidebar-toggle-btn svg {
+    transition: transform 0.3s ease-in-out;
+}
+
+/* 当侧边栏收起时，按钮的样式 */
+.app-container.sidebar-collapsed .sidebar-toggle-btn {
+    left: 10px;
+    background: #667eea;
+}
+
+.app-container.sidebar-collapsed .sidebar-toggle-btn svg {
+    transform: rotate(180deg);
+}
+

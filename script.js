@@ -32,7 +32,10 @@ constructor() {
     this.loadModels();
     this.loadConversations();
     this.updateRoleDisplay();
-    
+    // 加载并应用侧边栏状态
+if (localStorage.getItem('sidebar_collapsed') === 'true') {
+    this.elements.appContainer.classList.add('sidebar-collapsed');
+}
     // 如果没有会话，创建第一个
     if (this.conversations.length === 0) {
         this.createNewConversation();
@@ -42,6 +45,8 @@ constructor() {
 
     initializeElements() {
         this.elements = {
+            appContainer: document.querySelector('.app-container'),
+    toggleSidebarBtn: document.getElementById('toggleSidebarBtn'),
             searchToggle: document.getElementById('searchToggle'), // 新增
             // API 和模型相关
             apiKeyInput: document.getElementById('apiKey'),
@@ -125,6 +130,7 @@ constructor() {
                 this.sendMessage();
             }
         });
+        
 
         // Auto-resize textarea
         this.elements.messageInput.addEventListener('input', () => this.autoResizeTextarea());
@@ -179,6 +185,16 @@ constructor() {
         this.elements.roleModal.addEventListener('click', (e) => {
             if (e.target === this.elements.roleModal) this.hideRoleModal();
         });
+        this.elements.toggleSidebarBtn.addEventListener('click', () => this.toggleSidebar());
+    }
+    // ==================== UI 交互 ====================
+
+    toggleSidebar() {
+        this.elements.appContainer.classList.toggle('sidebar-collapsed');
+        
+        // 将状态保存到 localStorage，以便刷新后保持
+        const isCollapsed = this.elements.appContainer.classList.contains('sidebar-collapsed');
+        localStorage.setItem('sidebar_collapsed', isCollapsed);
     }
 
     // ==================== 角色管理 ====================
