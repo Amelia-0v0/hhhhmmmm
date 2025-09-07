@@ -728,10 +728,11 @@ constructor() {
 <pre class="search-context-box">${data.context}</pre>`;
                             statusDiv.classList.add('search-results-displayed');
                         } else if (eventType === 'llm_chunk') {
-                            if (statusDiv.classList.contains('search-results-displayed')) { // 
-                                statusDiv.textContent = '[状态] AI 正在基于网络信息回答...';      // 
-                                statusDiv.classList.remove('search-results-displayed');   // 
-                            }      
+                            // 注释掉以下代码，保留详细的搜索信息框
+                            // if (statusDiv.classList.contains('search-results-displayed')) { 
+                            //     statusDiv.textContent = '[状态] AI 正在基于网络信息回答...';      
+                            //     statusDiv.classList.remove('search-results-displayed');   
+                            // }      
                             fullResponse += data.content;
                             aiMessageContent.textContent = "🌐 (联网) " + fullResponse + '▋'; // 添加光标效果
                             this.scrollToBottom();
