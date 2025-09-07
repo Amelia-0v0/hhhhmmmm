@@ -740,6 +740,8 @@ constructor() {
                         } else if (eventType === 'done') {
                             // 流结束，移除光标
                             aiMessageContent.textContent = "🌐 (联网) " + fullResponse;
+                            // 将状态框的最终文本设置为完成状态
+    statusDiv.textContent = `[状态] 已完成联网搜索。回答生成于 ${new Date().toLocaleTimeString()}`;
                         }
                     }
                 }
