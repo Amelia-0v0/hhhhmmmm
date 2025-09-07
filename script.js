@@ -726,7 +726,12 @@ constructor() {
                         } else if (eventType === 'search_results') {
                             statusDiv.innerHTML = `[状态] 已找到网络信息，正在总结...  
 <pre class="search-context-box">${data.context}</pre>`;
+                            statusDiv.classList.add('search-results-displayed');
                         } else if (eventType === 'llm_chunk') {
+                            if (statusDiv.classList.contains('search-results-displayed')) { // 👈 添加
+                                statusDiv.textContent = '[状态] AI 正在基于网络信息回答...';      // 👈 添加
+                                statusDiv.classList.remove('search-results-displayed');   // 👈 添加
+                            }      
                             fullResponse += data.content;
                             aiMessageContent.textContent = "🌐 (联网) " + fullResponse + '▋'; // 添加光标效果
                             this.scrollToBottom();
@@ -765,7 +770,7 @@ constructor() {
             this.showError(`发送消息失败: ${error.message}`);
             // 确保任何残留的UI元素被清理
             const statusDiv = document.querySelector('.message.system-message');
-            if (statusDiv) statusDiv.remove();
+           // if (statusDiv) statusDiv.remove();
             this.hideTypingIndicator();
         } finally {
             this.isLoading = false;
