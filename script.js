@@ -673,7 +673,7 @@ constructor() {
                 // --- 分支1: 流式联网搜索 ---
                 
                 // 2. 创建一个临时的 div 用于实时显示后端状态
-                const statusDiv = this.addSystemMessage('正在初始化连接...');
+                 statusDiv = this.addSystemMessage('正在初始化连接...');
                 
                 // 3. 创建一个空的 AI 消息框，用于后续逐字填充内容
                 const aiMessageDiv = this.createEmptyMessage('assistant', this.currentModel);
@@ -770,9 +770,10 @@ constructor() {
             
         } catch (error) {
             this.showError(`发送消息失败: ${error.message}`);
-            // 确保任何残留的UI元素被清理
-            const statusDiv = document.querySelector('.message.system-message');
-           // if (statusDiv) statusDiv.remove();
+            // 3. 在 catch 块里，如果 statusDiv 存在，可以更新它的状态为错误
+            if (statusDiv) {
+                statusDiv.textContent = `[错误] 处理失败: ${error.message}`;
+            }
             this.hideTypingIndicator();
         } finally {
             this.isLoading = false;
