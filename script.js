@@ -728,9 +728,9 @@ constructor() {
 <pre class="search-context-box">${data.context}</pre>`;
                             statusDiv.classList.add('search-results-displayed');
                         } else if (eventType === 'llm_chunk') {
-                            if (statusDiv.classList.contains('search-results-displayed')) { // 👈 添加
-                                statusDiv.textContent = '[状态] AI 正在基于网络信息回答...';      // 👈 添加
-                                statusDiv.classList.remove('search-results-displayed');   // 👈 添加
+                            if (statusDiv.classList.contains('search-results-displayed')) { // 
+                                statusDiv.textContent = '[状态] AI 正在基于网络信息回答...';      // 
+                                statusDiv.classList.remove('search-results-displayed');   // 
                             }      
                             fullResponse += data.content;
                             aiMessageContent.textContent = "🌐 (联网) " + fullResponse + '▋'; // 添加光标效果
@@ -746,8 +746,8 @@ constructor() {
                 
                 // 6. 流结束后，将完整的回答保存到会话历史记录中
                 this.addMessageToHistory('assistant', "🌐 (联网) " + fullResponse);
-                statusDiv.remove(); // 任务完成，移除状态提示
-
+                // statusDiv.remove(); // 保留搜索信息显示，不再自动移除
+                
             } else {
                 // --- 分支2: 普通非流式调用 (保持不变) ---
                 this.showTypingIndicator();
