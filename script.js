@@ -765,7 +765,15 @@ constructor() {
             conversation.model = this.currentModel;
             this.saveConversations();
             this.loadConversations();
-            
+             // 检测是否需要自动生成备忘录
+             if (this.memoSettings.autoMemoEnabled && 
+                conversation.messages.length >= this.memoSettings.messageThreshold) {
+                
+                // 为了不阻塞用户体验，我们可以让它在后台悄悄运行
+                // 但为了调试，我们先用 await 确保它执行
+                this.addSystemMessage('📝 对话已达到长度阈值，正在检查并生成备忘录...');
+                await this.generateMemoAutomatically(conversation);
+            }
         } catch (error) {
             this.showError(`发送消息失败: ${error.message}`);
             // 确保任何残留的UI元素被清理
