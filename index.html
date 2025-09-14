@@ -185,15 +185,76 @@
                             </svg>
                         </button>
                     </div>
-                    <div class="api-key-section">
+                    <div class="api-key-section" style="display: none;">
                         <input type="password" id="apiKey" placeholder="输入您的 OpenRouter API Key" class="api-key-input">
                         <button id="saveApiKey" class="save-btn">保存</button>
                     </div>
-                    <div class="model-section">
-                        <label for="modelSelect">选择模型:</label>
-                        <select id="modelSelect" class="model-select">
-                            <option value="">加载中...</option>
-                        </select>
+                    
+                    <!-- 国内模型API Key输入区域 -->
+                    <div class="domestic-api-keys-section" id="domesticApiKeysSection">
+                        <div class="api-keys-header">
+                            <h4>🔑 API Key 配置</h4>
+                            <p>请设置各模型的API Key以启用对比功能</p>
+                        </div>
+                        <div class="domestic-api-keys-grid">
+                            <div class="api-key-card" data-model="doubao">
+                                <div class="api-key-card-header">
+                                    <div class="model-icon">🤖</div>
+                                    <div class="model-info">
+                                        <h5>豆包</h5>
+                                        <span class="model-status" id="doubaoStatus">未设置</span>
+                                    </div>
+                                </div>
+                                <div class="api-key-input-group">
+                                    <input type="password" id="doubaoApiKey" placeholder="输入豆包API Key" class="api-key-input-small">
+                                    <button id="saveDoubaoApiKey" class="save-btn-small">保存</button>
+                                </div>
+                            </div>
+                            
+                            <div class="api-key-card" data-model="deepseek">
+                                <div class="api-key-card-header">
+                                    <div class="model-icon">🧠</div>
+                                    <div class="model-info">
+                                        <h5>DeepSeek</h5>
+                                        <span class="model-status" id="deepseekStatus">未设置</span>
+                                    </div>
+                                </div>
+                                <div class="api-key-input-group">
+                                    <input type="password" id="deepseekApiKey" placeholder="输入DeepSeek API Key" class="api-key-input-small">
+                                    <button id="saveDeepseekApiKey" class="save-btn-small">保存</button>
+                                </div>
+                            </div>
+                            
+                            <div class="api-key-card" data-model="wenxin">
+                                <div class="api-key-card-header">
+                                    <div class="model-icon">💡</div>
+                                    <div class="model-info">
+                                        <h5>文心一言</h5>
+                                        <span class="model-status" id="wenxinStatus">未设置</span>
+                                    </div>
+                                </div>
+                                <div class="api-key-input-group">
+                                    <input type="password" id="wenxinApiKey" placeholder="输入文心一言API Key" class="api-key-input-small">
+                                    <button id="saveWenxinApiKey" class="save-btn-small">保存</button>
+                                </div>
+                            </div>
+                            
+                            <div class="api-key-card" data-model="qwen">
+                                <div class="api-key-card-header">
+                                    <div class="model-icon">🌟</div>
+                                    <div class="model-info">
+                                        <h5>通义千问</h5>
+                                        <span class="model-status" id="qwenStatus">未设置</span>
+                                    </div>
+                                </div>
+                                <div class="api-key-input-group">
+                                    <input type="password" id="qwenApiKey" placeholder="输入通义千问API Key" class="api-key-input-small">
+                                    <button id="saveQwenApiKey" class="save-btn-small">保存</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="search-section">
                         <label class="search-toggle-label" title="开启后，将联网搜索最新信息来回答问题">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                             <input type="checkbox" id="searchToggle">

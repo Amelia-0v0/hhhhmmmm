@@ -8,6 +8,54 @@ constructor() {
     this.availableModels = [];
     this.isLoading = false;
     
+    // 国内模型配置
+    this.domesticModels = {
+        'doubao': {
+            name: '豆包',
+            apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+            apiKey: 'doubao_api_key',
+            headers: {
+                'Authorization': 'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+        },
+        'deepseek': {
+            name: 'DeepSeek',
+            apiUrl: 'https://api.deepseek.com/v1/chat/completions',
+            apiKey: 'deepseek_api_key',
+            headers: {
+                'Authorization': 'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+        },
+        'wenxin': {
+            name: '文心一言',
+            apiUrl: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions',
+            apiKey: 'wenxin_api_key',
+            headers: {
+                'Authorization': 'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+        },
+        'qwen': {
+            name: '通义千问',
+            apiUrl: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
+            apiKey: 'qwen_api_key',
+            headers: {
+                'Authorization': 'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+        }
+    };
+    
+    // 存储各模型的API Key
+    this.domesticApiKeys = {
+        doubao: localStorage.getItem('doubao_api_key') || '',
+        deepseek: localStorage.getItem('deepseek_api_key') || '',
+        wenxin: localStorage.getItem('wenxin_api_key') || '',
+        qwen: localStorage.getItem('qwen_api_key') || ''
+    };
+    
     // 会话管理
     this.conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
     this.currentConversationId = null;
@@ -29,6 +77,7 @@ constructor() {
     this.initializeElements();
     this.bindEvents();
     this.loadApiKey();
+    this.loadDomesticApiKeys();
     this.loadModels();
     this.loadConversations();
     this.updateRoleDisplay();
@@ -54,6 +103,17 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
             modelSelect: document.getElementById('modelSelect'),
             statusText: document.getElementById('statusText'),
             currentModelText: document.getElementById('currentModel'),
+            
+            // 国内模型API Key相关
+            domesticApiKeysSection: document.getElementById('domesticApiKeysSection'),
+            doubaoApiKey: document.getElementById('doubaoApiKey'),
+            saveDoubaoApiKey: document.getElementById('saveDoubaoApiKey'),
+            deepseekApiKey: document.getElementById('deepseekApiKey'),
+            saveDeepseekApiKey: document.getElementById('saveDeepseekApiKey'),
+            wenxinApiKey: document.getElementById('wenxinApiKey'),
+            saveWenxinApiKey: document.getElementById('saveWenxinApiKey'),
+            qwenApiKey: document.getElementById('qwenApiKey'),
+            saveQwenApiKey: document.getElementById('saveQwenApiKey'),
             
             // 聊天相关
             chatMessages: document.getElementById('chatMessages'),
@@ -117,6 +177,27 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         this.elements.saveApiKeyBtn.addEventListener('click', () => this.saveApiKey());
         this.elements.apiKeyInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.saveApiKey();
+        });
+        
+        // 国内模型API Key events
+        this.elements.saveDoubaoApiKey.addEventListener('click', () => this.saveDomesticApiKey('doubao'));
+        this.elements.doubaoApiKey.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.saveDomesticApiKey('doubao');
+        });
+        
+        this.elements.saveDeepseekApiKey.addEventListener('click', () => this.saveDomesticApiKey('deepseek'));
+        this.elements.deepseekApiKey.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.saveDomesticApiKey('deepseek');
+        });
+        
+        this.elements.saveWenxinApiKey.addEventListener('click', () => this.saveDomesticApiKey('wenxin'));
+        this.elements.wenxinApiKey.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.saveDomesticApiKey('wenxin');
+        });
+        
+        this.elements.saveQwenApiKey.addEventListener('click', () => this.saveDomesticApiKey('qwen'));
+        this.elements.qwenApiKey.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.saveDomesticApiKey('qwen');
         });
 
         // Model selection
@@ -475,13 +556,20 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
     }
 
     async loadModels() {
+        // 先加载国内模型（不需要API Key）
+        this.populateModelSelect();
+        
+        // 显示国内模型API Key区域
+        this.elements.domesticApiKeysSection.style.display = 'block';
+        
+        // 如果有OpenRouter API Key，再加载OpenRouter模型
         if (!this.apiKey) {
-            this.updateStatus('请先输入 API Key');
+            this.updateStatus('已加载国内模型，请设置API Key开始使用');
             return;
         }
 
         try {
-            this.updateStatus('加载模型列表...');
+            this.updateStatus('加载OpenRouter模型列表...');
             const response = await fetch('https://openrouter.ai/api/v1/models', {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
@@ -498,9 +586,9 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
             this.populateModelSelect();
             this.updateStatus('模型列表加载完成');
         } catch (error) {
-            console.error('加载模型失败:', error);
-            this.showError(`加载模型失败: ${error.message}`);
-            this.updateStatus('加载模型失败');
+            console.error('加载OpenRouter模型失败:', error);
+            this.showError(`加载OpenRouter模型失败: ${error.message}`);
+            this.updateStatus('国内模型已加载，OpenRouter模型加载失败');
         }
     }
 
@@ -508,6 +596,20 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         const select = this.elements.modelSelect;
         select.innerHTML = '<option value="">选择一个模型...</option>';
 
+        // 添加国内模型分组
+        const domesticGroup = document.createElement('optgroup');
+        domesticGroup.label = '国内模型';
+        
+        Object.entries(this.domesticModels).forEach(([key, model]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = model.name;
+            domesticGroup.appendChild(option);
+        });
+        
+        select.appendChild(domesticGroup);
+
+        // 保留原有的OpenRouter模型分组（如果有的话）
         const modelGroups = {
             'OpenAI': [],
             'Anthropic': [],
@@ -557,13 +659,30 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         if (!modelId) return;
         
         this.currentModel = modelId;
-        this.elements.currentModelText.textContent = `当前模型: ${modelId}`;
-        this.updateStatus('模型已选择，可以开始对话');
+        
+        // 显示模型名称
+        const modelName = this.domesticModels[modelId] ? this.domesticModels[modelId].name : modelId;
+        this.elements.currentModelText.textContent = `当前模型: ${modelName}`;
+        
+        // 检查API Key状态
+        if (this.domesticModels[modelId]) {
+            const hasApiKey = this.checkDomesticModelApiKey(modelId);
+            if (hasApiKey) {
+                this.updateStatus('模型已选择，可以开始对话');
+                // 保持API Key区域显示，方便用户查看和修改
+            } else {
+                this.updateStatus(`请先设置${modelName}的API Key`);
+            }
+        } else {
+            this.updateStatus('模型已选择，可以开始对话');
+            this.elements.domesticApiKeysSection.style.display = 'none';
+        }
+        
         this.enableSendButton();
         
         // 添加模型切换消息到当前会话
         if (this.currentConversationId && this.getCurrentConversation()?.messages.length > 0) {
-            this.addSystemMessage(`已切换到模型: ${modelId}`);
+            this.addSystemMessage(`已切换到模型: ${modelName}`);
         }
     }
 
@@ -884,9 +1003,17 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
                 // statusDiv.remove(); // 保留搜索信息显示，不再自动移除
                 
             } else {
-                // --- 分支2: 普通非流式调用 (保持不变) ---
+                // --- 分支2: 普通非流式调用 ---
                 this.showTypingIndicator();
-                const responseContent = await this.callOpenRouterAPI(message, conversation);
+                
+                // 判断是否为国内模型
+                let responseContent;
+                if (this.domesticModels[this.currentModel]) {
+                    responseContent = await this.callDomesticModel(message, conversation);
+                } else {
+                    responseContent = await this.callOpenRouterAPI(message, conversation);
+                }
+                
                 this.hideTypingIndicator();
                 this.addMessage('assistant', responseContent, this.currentModel);
             }
@@ -908,6 +1035,7 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
                 // 但为了调试，我们先用 await 确保它执行
                 this.addSystemMessage('📝 对话已达到长度阈值，正在检查并生成备忘录...');
                 await this.generateMemoAutomatically(conversation);
+                this.updateMemoStatus();
             }
         } catch (error) {
             this.showError(`发送消息失败: ${error.message}`);
@@ -979,6 +1107,97 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         }
 
         return data.choices[0].message.content;
+    }
+
+    // 新增：调用国内模型的方法
+    async callDomesticModel(message, conversation) {
+        const model = this.domesticModels[this.currentModel];
+        if (!model) {
+            throw new Error('模型不存在');
+        }
+
+        const apiKey = this.domesticApiKeys[this.currentModel.toLowerCase()];
+        if (!apiKey) {
+            throw new Error(`请先设置${model.name}的API Key`);
+        }
+
+        // 构建消息历史
+        let messages = [];
+        
+        // 首先添加角色设定作为系统消息
+        if (this.currentRole && this.currentRole.description) {
+            messages.push({
+                role: 'system',
+                content: `角色设定：${this.currentRole.description}\n\n请始终按照这个角色设定来回应用户的问题和请求。`
+            });
+        }
+        
+        // 如果有备忘录，添加备忘录作为系统消息
+        if (conversation.memo) {
+            messages.push({
+                role: 'system',
+                content: `以下是之前对话的总结备忘录：\n${conversation.memo}\n\n请基于这个背景继续对话。`
+            });
+        }
+        
+        // 添加最近的对话消息
+        const recentMessages = conversation.messages.slice(-this.memoSettings.keepRecentMessages);
+        messages = messages.concat(recentMessages);
+        
+        // 添加当前用户消息
+        messages.push({ role: 'user', content: message });
+
+        // 构建请求头
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        // 根据模型类型设置认证头
+        if (this.currentModel === 'wenxin') {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        } else if (this.currentModel === 'qwen') {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        } else {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
+        const response = await fetch(model.apiUrl, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                model: this.currentModel,
+                messages: messages,
+                temperature: 0.7,
+                max_tokens: 2000,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // 根据不同模型的响应格式解析结果
+        if (this.currentModel === 'qwen') {
+            if (!data.output || !data.output.text) {
+                throw new Error('API 返回了无效的响应格式');
+            }
+            return data.output.text;
+        } else if (this.currentModel === 'wenxin') {
+            if (!data.result) {
+                throw new Error('API 返回了无效的响应格式');
+            }
+            return data.result;
+        } else {
+            // 豆包和DeepSeek使用标准格式
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                throw new Error('API 返回了无效的响应格式');
+            }
+            return data.choices[0].message.content;
+        }
     }
 
     addMessage(role, content, model = null) {
@@ -1229,13 +1448,80 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
             this.enableSendButton();
         }
     }
+    
+    // 新增：检查国内模型API Key是否已设置
+    checkDomesticModelApiKey(modelKey) {
+        // 将模型key转换为小写，因为domesticApiKeys中的key都是小写
+        const key = modelKey.toLowerCase();
+        return this.domesticApiKeys[key] && this.domesticApiKeys[key].length > 0;
+    }
+    
+    // 新增：设置国内模型API Key
+    setDomesticApiKey(modelKey, apiKey) {
+        const key = modelKey.toLowerCase();
+        this.domesticApiKeys[key] = apiKey;
+        localStorage.setItem(`${key}_api_key`, apiKey);
+    }
+    
+    // 新增：保存国内模型API Key
+    saveDomesticApiKey(modelKey) {
+        const key = modelKey.toLowerCase();
+        const inputElement = this.elements[`${key}ApiKey`];
+        const apiKey = inputElement.value.trim();
+        
+        if (!apiKey) {
+            this.showError(`请输入${this.domesticModels[key].name}的API Key`);
+            return;
+        }
+        
+        this.setDomesticApiKey(key, apiKey);
+        this.updateStatus(`${this.domesticModels[key].name} API Key 已保存`);
+        this.updateModelStatus(key, true);
+        this.enableSendButton();
+    }
+    
+    // 新增：更新模型状态显示
+    updateModelStatus(modelKey, isSet) {
+        const key = modelKey.toLowerCase();
+        const statusElement = document.getElementById(`${key}Status`);
+        if (statusElement) {
+            statusElement.textContent = isSet ? '已设置' : '未设置';
+            statusElement.className = `model-status ${isSet ? 'status-set' : ''}`;
+        }
+    }
+    
+    // 新增：加载国内模型API Key
+    loadDomesticApiKeys() {
+        Object.keys(this.domesticApiKeys).forEach(key => {
+            const inputElement = this.elements[`${key}ApiKey`];
+            if (inputElement && this.domesticApiKeys[key]) {
+                inputElement.value = this.domesticApiKeys[key];
+                this.updateModelStatus(key, true);
+            } else {
+                this.updateModelStatus(key, false);
+            }
+        });
+    }
+    
+    // 新增：显示/隐藏国内模型API Key区域
+    toggleDomesticApiKeysSection() {
+        const section = this.elements.domesticApiKeysSection;
+        if (section.style.display === 'none') {
+            section.style.display = 'block';
+        } else {
+            section.style.display = 'none';
+        }
+    }
 
     enableSendButton() {
         const hasMessage = this.elements.messageInput.value.trim().length > 0;
-        const hasModel = this.currentModel.length > 0;
-        const hasApiKey = this.apiKey.length > 0;
         
-        this.elements.sendButton.disabled = !(hasMessage && hasModel && hasApiKey && !this.isLoading);
+        // 检查是否至少有一个模型设置了API Key
+        const hasAnyApiKey = Object.keys(this.domesticApiKeys).some(key => 
+            this.domesticApiKeys[key] && this.domesticApiKeys[key].length > 0
+        );
+        
+        this.elements.sendButton.disabled = !(hasMessage && hasAnyApiKey && !this.isLoading);
     }
 
     autoResizeTextarea() {
@@ -1317,29 +1603,73 @@ ${messagesToSummarize.map((msg, index) =>
 请用中文总结，保持简洁但包含重要细节。`;
             }
 
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': window.location.origin,
-                    'X-Title': 'OpenRouter Multi-Model Chat - Memo Generation'
-                },
-                body: JSON.stringify({
-                    model: this.currentModel,
-                    messages: [{ role: 'user', content: summaryPrompt }],
-                    temperature: 0.3,
-                    max_tokens: 1000,
-                    stream: false
-                })
-            });
+            // 判断是否为国内模型
+            let response;
+            if (this.domesticModels[this.currentModel]) {
+                const model = this.domesticModels[this.currentModel];
+                const apiKey = this.domesticApiKeys[this.currentModel.toLowerCase()];
+                
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (this.currentModel === 'wenxin') {
+                    headers['Authorization'] = `Bearer ${apiKey}`;
+                } else if (this.currentModel === 'qwen') {
+                    headers['Authorization'] = `Bearer ${apiKey}`;
+                } else {
+                    headers['Authorization'] = `Bearer ${apiKey}`;
+                }
+                
+                response = await fetch(model.apiUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        model: this.currentModel,
+                        messages: [{ role: 'user', content: summaryPrompt }],
+                        temperature: 0.3,
+                        max_tokens: 1000,
+                        stream: false
+                    })
+                });
+            } else {
+                response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.origin,
+                        'X-Title': 'OpenRouter Multi-Model Chat - Memo Generation'
+                    },
+                    body: JSON.stringify({
+                        model: this.currentModel,
+                        messages: [{ role: 'user', content: summaryPrompt }],
+                        temperature: 0.3,
+                        max_tokens: 1000,
+                        stream: false
+                    })
+                });
+            }
 
             if (!response.ok) {
                 throw new Error(`生成备忘录失败: HTTP ${response.status}`);
             }
 
             const data = await response.json();
-            const memoContent = data.choices[0].message.content;
+            
+            // 根据不同模型的响应格式解析结果
+            let memoContent;
+            if (this.domesticModels[this.currentModel]) {
+                if (this.currentModel === 'qwen') {
+                    memoContent = data.output.text;
+                } else if (this.currentModel === 'wenxin') {
+                    memoContent = data.result;
+                } else {
+                    memoContent = data.choices[0].message.content;
+                }
+            } else {
+                memoContent = data.choices[0].message.content;
+            }
 
             // 保存新备忘录
             const totalMessageCount = (conversation.memoMessageCount || 0) + conversation.messages.length - this.memoSettings.keepRecentMessages;
@@ -1640,7 +1970,14 @@ ${messagesToSummarize.map((msg, index) =>
         this.showTypingIndicator();
         
         try {
-            const response = await this.callOpenRouterAPI(editedMessage, conversation);
+            // 判断是否为国内模型
+            let response;
+            if (this.domesticModels[this.currentModel]) {
+                response = await this.callDomesticModel(editedMessage, conversation);
+            } else {
+                response = await this.callOpenRouterAPI(editedMessage, conversation);
+            }
+            
             this.hideTypingIndicator();
             
             // 添加新的AI回答
