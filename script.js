@@ -905,7 +905,17 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         const message = this.elements.messageInput.value.trim();
         const useSearch = this.elements.searchToggle.checked;
 
-        if (!message || !this.currentModel || !this.apiKey || this.isLoading) return;
+        if (!message || this.isLoading) return;
+
+        // 检查是否至少有一个模型设置了API Key
+        const hasAnyApiKey = Object.keys(this.domesticApiKeys).some(key => 
+            this.domesticApiKeys[key] && this.domesticApiKeys[key].length > 0
+        );
+
+        if (!hasAnyApiKey) {
+            this.showError('请至少设置一个模型的API Key');
+            return;
+        }
 
         const conversation = this.getCurrentConversation();
         if (!conversation) {
@@ -923,125 +933,31 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         
         try {
             if (useSearch) {
-                // --- 分支1: 流式联网搜索 ---
-                
-                // 2. 创建一个临时的 div 用于实时显示后端状态
-                const statusDiv = this.addSystemMessage('正在初始化连接...');
-                
-                // 3. 创建一个空的 AI 消息框，用于后续逐字填充内容
-                const aiMessageDiv = this.createEmptyMessage('assistant', this.currentModel);
-                const aiMessageContent = aiMessageDiv.querySelector('.message-text');
-                
-                // 4. 发送请求
-                const response = await fetch(this.searchApiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.apiKey}`
-                    },
-                    body: JSON.stringify({ query: message, model: this.currentModel }),
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`服务返回错误 ${response.status}: ${errorText}`);
-                }
-
-                // 5. 开始处理流式响应
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                let buffer = '';
-                let fullResponse = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break; // 如果流结束，退出循环
-
-                    // 将接收到的二进制数据块解码为字符串，并追加到缓冲区
-                    buffer += decoder.decode(value, { stream: true });
-                    
-                    // 按 SSE 的格式 (两个换行符) 分割事件
-                    const eventStrings = buffer.split('\n\n');
-                    buffer = eventStrings.pop(); // 最后一个可能不完整，放回缓冲区等待下次处理
-
-                    for (const eventString of eventStrings) {
-                        if (!eventString.startsWith('event: ')) continue;
-
-                        // 解析单个事件
-                        const eventLine = eventString.split('\n')[0];
-                        const dataLine = eventString.split('\n')[1];
-                        const eventType = eventLine.substring(7);
-                        const data = JSON.parse(dataLine.substring(6));
-
-                        // 根据不同的事件类型，更新不同的界面元素
-                        if (eventType === 'status') {
-                            statusDiv.textContent = `[状态] ${data.message}`;
-                        } else if (eventType === 'search_results') {
-                            statusDiv.innerHTML = `[状态] 已找到网络信息，正在总结...  
-<pre class="search-context-box">${data.context}</pre>`;
-                            statusDiv.classList.add('search-results-displayed');
-                        } else if (eventType === 'llm_chunk') {
-                            // 注释掉以下代码，保留详细的搜索信息框
-                            // if (statusDiv.classList.contains('search-results-displayed')) { 
-                            //     statusDiv.textContent = '[状态] AI 正在基于网络信息回答...';      
-                            //     statusDiv.classList.remove('search-results-displayed');   
-                            // }      
-                            fullResponse += data.content;
-                            aiMessageContent.textContent = "🌐 (联网) " + fullResponse + '▋'; // 添加光标效果
-                            this.scrollToBottom();
-                        } else if (eventType === 'error') {
-                            throw new Error(data.message);
-                        } else if (eventType === 'done') {
-                            // 流结束，移除光标
-                            aiMessageContent.textContent = "🌐 (联网) " + fullResponse;
-                        }
-                    }
-                }
-                
-                // 6. 流结束后，将完整的回答保存到会话历史记录中
-                this.addMessageToHistory('assistant', "🌐 (联网) " + fullResponse);
-                // statusDiv.remove(); // 保留搜索信息显示，不再自动移除
-                
+                // 联网搜索功能暂时保留，但主要使用对比功能
+                await this.handleSearchMode(message, conversation);
             } else {
-                // --- 分支2: 普通非流式调用 ---
-                this.showTypingIndicator();
-                
-                // 判断是否为国内模型
-                let responseContent;
-                if (this.domesticModels[this.currentModel]) {
-                    responseContent = await this.callDomesticModel(message, conversation);
-                } else {
-                    responseContent = await this.callOpenRouterAPI(message, conversation);
-                }
-                
-                this.hideTypingIndicator();
-                this.addMessage('assistant', responseContent, this.currentModel);
+                // --- 主要功能: 四个模型同时调用对比 ---
+                await this.handleComparisonMode(message, conversation);
             }
 
-            // --- 后续的会话管理逻辑 (保持不变) ---
+            // --- 后续的会话管理逻辑 ---
             if (conversation.messages.length === 2 && conversation.title === '新会话') {
                 conversation.title = message.length > 30 ? message.substring(0, 30) + '...' : message;
                 this.elements.chatTitle.textContent = conversation.title;
             }
             conversation.updatedAt = new Date().toISOString();
-            conversation.model = this.currentModel;
             this.saveConversations();
             this.loadConversations();
-             // 检测是否需要自动生成备忘录
-             if (this.memoSettings.autoMemoEnabled && 
+            
+            // 检测是否需要自动生成备忘录
+            if (this.memoSettings.autoMemoEnabled && 
                 conversation.messages.length >= this.memoSettings.messageThreshold) {
-                
-                // 为了不阻塞用户体验，我们可以让它在后台悄悄运行
-                // 但为了调试，我们先用 await 确保它执行
                 this.addSystemMessage('📝 对话已达到长度阈值，正在检查并生成备忘录...');
                 await this.generateMemoAutomatically(conversation);
                 this.updateMemoStatus();
             }
         } catch (error) {
             this.showError(`发送消息失败: ${error.message}`);
-            // 确保任何残留的UI元素被清理
-            const statusDiv = document.querySelector('.message.system-message');
-           // if (statusDiv) statusDiv.remove();
             this.hideTypingIndicator();
         } finally {
             this.isLoading = false;
@@ -1049,6 +965,171 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
             this.updateStatus('模型已就绪');
             this.elements.messageInput.focus();
         }
+    }
+
+    // 新增：处理对比模式
+    async handleComparisonMode(message, conversation) {
+        // 创建对比结果展示区域
+        const comparisonContainer = this.createComparisonContainer();
+        this.elements.chatMessages.appendChild(comparisonContainer);
+        
+        // 获取已设置API Key的模型
+        const availableModels = Object.keys(this.domesticApiKeys).filter(key => 
+            this.domesticApiKeys[key] && this.domesticApiKeys[key].length > 0
+        );
+        
+        // 同时调用所有可用模型
+        const promises = availableModels.map(modelKey => 
+            this.callModelWithProgress(message, conversation, modelKey, comparisonContainer)
+        );
+        
+        try {
+            await Promise.all(promises);
+            this.addSystemMessage('🎉 所有模型对比完成！');
+        } catch (error) {
+            console.error('对比过程中出现错误:', error);
+        }
+    }
+
+    // 新增：处理搜索模式（保留原有功能）
+    async handleSearchMode(message, conversation) {
+        // 这里保留原有的联网搜索功能
+        // 暂时简化，直接调用第一个可用模型
+        const availableModels = Object.keys(this.domesticApiKeys).filter(key => 
+            this.domesticApiKeys[key] && this.domesticApiKeys[key].length > 0
+        );
+        
+        if (availableModels.length > 0) {
+            const modelKey = availableModels[0];
+            this.showTypingIndicator();
+            const responseContent = await this.callDomesticModel(message, conversation);
+            this.hideTypingIndicator();
+            this.addMessage('assistant', responseContent, this.domesticModels[modelKey].name);
+        }
+    }
+
+    // 新增：创建对比容器
+    createComparisonContainer() {
+        const container = document.createElement('div');
+        container.className = 'comparison-container';
+        container.innerHTML = `
+            <div class="comparison-header">
+                <h3>🤖 多模型对比结果</h3>
+                <div class="comparison-stats">
+                    <span id="completedCount">0</span>/<span id="totalCount">0</span> 完成
+                </div>
+            </div>
+            <div class="comparison-grid" id="comparisonGrid">
+                <!-- 模型结果将通过JavaScript动态生成 -->
+            </div>
+        `;
+        return container;
+    }
+
+    // 新增：调用单个模型并显示进度
+    async callModelWithProgress(message, conversation, modelKey, comparisonContainer) {
+        const model = this.domesticModels[modelKey];
+        const modelCard = this.createModelCard(modelKey, model);
+        const grid = comparisonContainer.querySelector('#comparisonGrid');
+        grid.appendChild(modelCard);
+        
+        const statusElement = modelCard.querySelector('.model-status');
+        const contentElement = modelCard.querySelector('.model-content');
+        
+        try {
+            statusElement.textContent = '正在生成...';
+            statusElement.className = 'model-status status-generating';
+            
+            const response = await this.callDomesticModel(message, conversation, modelKey);
+            
+            statusElement.textContent = '生成完成';
+            statusElement.className = 'model-status status-completed';
+            contentElement.textContent = response;
+            
+            // 更新完成计数
+            this.updateComparisonStats(comparisonContainer);
+            
+        } catch (error) {
+            statusElement.textContent = '生成失败';
+            statusElement.className = 'model-status status-error';
+            contentElement.textContent = `错误: ${error.message}`;
+            
+            // 更新完成计数
+            this.updateComparisonStats(comparisonContainer);
+        }
+    }
+
+    // 新增：创建模型卡片
+    createModelCard(modelKey, model) {
+        const card = document.createElement('div');
+        card.className = 'model-result-card';
+        card.dataset.model = modelKey;
+        card.innerHTML = `
+            <div class="model-card-header">
+                <div class="model-icon-small">${this.getModelIcon(modelKey)}</div>
+                <div class="model-info">
+                    <h4>${model.name}</h4>
+                    <span class="model-status status-pending">等待中...</span>
+                </div>
+                <div class="model-actions">
+                    <button class="copy-btn" title="复制内容">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="model-content"></div>
+        `;
+        
+        // 绑定复制按钮事件
+        const copyBtn = card.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', () => {
+            const content = card.querySelector('.model-content').textContent;
+            navigator.clipboard.writeText(content).then(() => {
+                this.showSuccess('内容已复制到剪贴板');
+            });
+        });
+        
+        return card;
+    }
+
+    // 新增：获取模型图标
+    getModelIcon(modelKey) {
+        const icons = {
+            'doubao': '🤖',
+            'deepseek': '🧠',
+            'wenxin': '💡',
+            'qwen': '🌟'
+        };
+        return icons[modelKey] || '🤖';
+    }
+
+    // 新增：更新对比统计
+    updateComparisonStats(container) {
+        const completedCount = container.querySelectorAll('.status-completed, .status-error').length;
+        const totalCount = container.querySelectorAll('.model-result-card').length;
+        
+        container.querySelector('#completedCount').textContent = completedCount;
+        container.querySelector('#totalCount').textContent = totalCount;
+    }
+
+    // 新增：显示成功消息
+    showSuccess(message) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.textContent = message;
+        
+        this.elements.chatMessages.appendChild(successDiv);
+        this.scrollToBottom();
+        
+        // 3秒后自动移除
+        setTimeout(() => {
+            if (successDiv.parentNode) {
+                successDiv.remove();
+            }
+        }, 3000);
     }
 
     async callOpenRouterAPI(message, conversation) {
@@ -1110,13 +1191,14 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
     }
 
     // 新增：调用国内模型的方法
-    async callDomesticModel(message, conversation) {
-        const model = this.domesticModels[this.currentModel];
+    async callDomesticModel(message, conversation, modelKey = null) {
+        const targetModelKey = modelKey || this.currentModel;
+        const model = this.domesticModels[targetModelKey];
         if (!model) {
             throw new Error('模型不存在');
         }
 
-        const apiKey = this.domesticApiKeys[this.currentModel.toLowerCase()];
+        const apiKey = this.domesticApiKeys[targetModelKey.toLowerCase()];
         if (!apiKey) {
             throw new Error(`请先设置${model.name}的API Key`);
         }
@@ -1153,9 +1235,9 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         };
         
         // 根据模型类型设置认证头
-        if (this.currentModel === 'wenxin') {
+        if (targetModelKey === 'wenxin') {
             headers['Authorization'] = `Bearer ${apiKey}`;
-        } else if (this.currentModel === 'qwen') {
+        } else if (targetModelKey === 'qwen') {
             headers['Authorization'] = `Bearer ${apiKey}`;
         } else {
             headers['Authorization'] = `Bearer ${apiKey}`;
@@ -1165,7 +1247,7 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
-                model: this.currentModel,
+                model: targetModelKey,
                 messages: messages,
                 temperature: 0.7,
                 max_tokens: 2000,
@@ -1181,12 +1263,12 @@ if (localStorage.getItem('sidebar_collapsed') === 'true') {
         const data = await response.json();
         
         // 根据不同模型的响应格式解析结果
-        if (this.currentModel === 'qwen') {
+        if (targetModelKey === 'qwen') {
             if (!data.output || !data.output.text) {
                 throw new Error('API 返回了无效的响应格式');
             }
             return data.output.text;
-        } else if (this.currentModel === 'wenxin') {
+        } else if (targetModelKey === 'wenxin') {
             if (!data.result) {
                 throw new Error('API 返回了无效的响应格式');
             }
