@@ -2,26 +2,53 @@ class OpenRouterChat {
     constructor() {
         this.apiKey = localStorage.getItem('openrouter_api_key') || '';
         this.currentModel = '';
-        this.chatHistory = [];
         this.availableModels = [];
         this.isLoading = false;
+        
+        // 会话管理
+        this.conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
+        this.currentConversationId = null;
+        this.conversationsPerPage = 20;
+        this.conversationsLoaded = 0;
         
         this.initializeElements();
         this.bindEvents();
         this.loadApiKey();
         this.loadModels();
+        this.loadConversations();
+        
+        // 如果没有会话，创建第一个
+        if (this.conversations.length === 0) {
+            this.createNewConversation();
+        }
     }
 
     initializeElements() {
         this.elements = {
+            // API 和模型相关
             apiKeyInput: document.getElementById('apiKey'),
             saveApiKeyBtn: document.getElementById('saveApiKey'),
             modelSelect: document.getElementById('modelSelect'),
+            statusText: document.getElementById('statusText'),
+            currentModelText: document.getElementById('currentModel'),
+            
+            // 聊天相关
             chatMessages: document.getElementById('chatMessages'),
             messageInput: document.getElementById('messageInput'),
             sendButton: document.getElementById('sendButton'),
-            statusText: document.getElementById('statusText'),
-            currentModelText: document.getElementById('currentModel')
+            chatTitle: document.getElementById('chatTitle'),
+            
+            // 会话管理
+            conversationsList: document.getElementById('conversationsList'),
+            newChatBtn: document.getElementById('newChatBtn'),
+            loadMoreBtn: document.getElementById('loadMoreBtn'),
+            renameChatBtn: document.getElementById('renameChatBtn'),
+            
+            // 模态框
+            renameModal: document.getElementById('renameModal'),
+            renameInput: document.getElementById('renameInput'),
+            confirmRename: document.getElementById('confirmRename'),
+            cancelRename: document.getElementById('cancelRename')
         };
     }
 
@@ -46,8 +73,28 @@ class OpenRouterChat {
 
         // Auto-resize textarea
         this.elements.messageInput.addEventListener('input', () => this.autoResizeTextarea());
+
+        // 会话管理
+        this.elements.newChatBtn.addEventListener('click', () => this.createNewConversation());
+        this.elements.loadMoreBtn.addEventListener('click', () => this.loadMoreConversations());
+        this.elements.renameChatBtn.addEventListener('click', () => this.showRenameModal());
+        
+        // 模态框事件
+        this.elements.confirmRename.addEventListener('click', () => this.confirmRename());
+        this.elements.cancelRename.addEventListener('click', () => this.hideRenameModal());
+        this.elements.renameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.confirmRename();
+            if (e.key === 'Escape') this.hideRenameModal();
+        });
+        
+        // 点击模态框外部关闭
+        this.elements.renameModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.renameModal) this.hideRenameModal();
+        });
     }
 
+    // ==================== API Key 和模型管理 ====================
+    
     loadApiKey() {
         if (this.apiKey) {
             this.elements.apiKeyInput.value = this.apiKey;
@@ -104,17 +151,6 @@ class OpenRouterChat {
         const select = this.elements.modelSelect;
         select.innerHTML = '<option value="">选择一个模型...</option>';
 
-        // 按受欢迎程度和类型分组模型
-        const popularModels = [
-            'openai/gpt-4o',
-            'openai/gpt-4o-mini',
-            'anthropic/claude-3.5-sonnet',
-            'anthropic/claude-3-haiku',
-            'google/gemini-pro-1.5',
-            'meta-llama/llama-3.1-8b-instruct',
-            'mistralai/mistral-7b-instruct'
-        ];
-
         const modelGroups = {
             'OpenAI': [],
             'Anthropic': [],
@@ -168,30 +204,223 @@ class OpenRouterChat {
         this.updateStatus('模型已选择，可以开始对话');
         this.enableSendButton();
         
-        // 添加模型切换消息到聊天历史
-        if (this.chatHistory.length > 0) {
+        // 添加模型切换消息到当前会话
+        if (this.currentConversationId && this.getCurrentConversation()?.messages.length > 0) {
             this.addSystemMessage(`已切换到模型: ${modelId}`);
         }
     }
 
-    enableInterface() {
-        this.elements.modelSelect.disabled = false;
-        if (this.currentModel) {
-            this.enableSendButton();
+    // ==================== 会话管理 ====================
+    
+    createNewConversation() {
+        const conversation = {
+            id: Date.now().toString(),
+            title: '新会话',
+            messages: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            model: this.currentModel || ''
+        };
+        
+        this.conversations.unshift(conversation);
+        this.saveConversations();
+        this.selectConversation(conversation.id);
+        this.loadConversations();
+    }
+
+    selectConversation(conversationId) {
+        this.currentConversationId = conversationId;
+        const conversation = this.getCurrentConversation();
+        
+        if (!conversation) return;
+        
+        // 更新标题
+        this.elements.chatTitle.textContent = conversation.title;
+        this.elements.renameChatBtn.style.display = 'block';
+        
+        // 清空聊天区域并加载消息
+        this.elements.chatMessages.innerHTML = '';
+        this.loadConversationMessages(conversation);
+        
+        // 更新会话列表的激活状态
+        this.updateConversationListUI();
+        
+        // 如果会话有保存的模型，切换到该模型
+        if (conversation.model && conversation.model !== this.currentModel) {
+            this.elements.modelSelect.value = conversation.model;
+            this.selectModel(conversation.model);
         }
     }
 
-    enableSendButton() {
-        const hasMessage = this.elements.messageInput.value.trim().length > 0;
-        const hasModel = this.currentModel.length > 0;
-        const hasApiKey = this.apiKey.length > 0;
-        
-        this.elements.sendButton.disabled = !(hasMessage && hasModel && hasApiKey && !this.isLoading);
+    getCurrentConversation() {
+        return this.conversations.find(conv => conv.id === this.currentConversationId);
     }
 
+    loadConversations() {
+        const container = this.elements.conversationsList;
+        container.innerHTML = '';
+        
+        const toShow = Math.min(this.conversationsPerPage, this.conversations.length);
+        this.conversationsLoaded = toShow;
+        
+        for (let i = 0; i < toShow; i++) {
+            const conversation = this.conversations[i];
+            const element = this.createConversationElement(conversation);
+            container.appendChild(element);
+        }
+        
+        // 显示/隐藏加载更多按钮
+        this.elements.loadMoreBtn.style.display = 
+            this.conversations.length > this.conversationsLoaded ? 'block' : 'none';
+        
+        // 如果没有选中的会话，选中第一个
+        if (!this.currentConversationId && this.conversations.length > 0) {
+            this.selectConversation(this.conversations[0].id);
+        }
+    }
+
+    loadMoreConversations() {
+        const container = this.elements.conversationsList;
+        const remaining = this.conversations.length - this.conversationsLoaded;
+        const toLoad = Math.min(this.conversationsPerPage, remaining);
+        
+        for (let i = this.conversationsLoaded; i < this.conversationsLoaded + toLoad; i++) {
+            const conversation = this.conversations[i];
+            const element = this.createConversationElement(conversation);
+            container.appendChild(element);
+        }
+        
+        this.conversationsLoaded += toLoad;
+        
+        // 隐藏按钮如果没有更多会话
+        if (this.conversationsLoaded >= this.conversations.length) {
+            this.elements.loadMoreBtn.style.display = 'none';
+        }
+    }
+
+    createConversationElement(conversation) {
+        const div = document.createElement('div');
+        div.className = 'conversation-item';
+        div.dataset.conversationId = conversation.id;
+        
+        const lastMessage = conversation.messages.length > 0 ? 
+            conversation.messages[conversation.messages.length - 1] : null;
+        const preview = lastMessage ? 
+            (lastMessage.content.length > 50 ? lastMessage.content.substring(0, 50) + '...' : lastMessage.content) : 
+            '暂无消息';
+        
+        const timeAgo = this.getTimeAgo(conversation.updatedAt);
+        
+        div.innerHTML = `
+            <div class="conversation-title">${conversation.title}</div>
+            <div class="conversation-preview">${preview}</div>
+            <div class="conversation-meta">
+                <span>${timeAgo}</span>
+                <div class="conversation-actions">
+                    <button class="action-btn delete-btn" title="删除会话">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3,6 5,6 21,6"></polyline>
+                            <path d="M19,6V20a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6M8,6V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // 点击选择会话
+        div.addEventListener('click', (e) => {
+            if (!e.target.closest('.conversation-actions')) {
+                this.selectConversation(conversation.id);
+            }
+        });
+        
+        // 删除按钮
+        const deleteBtn = div.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.deleteConversation(conversation.id);
+        });
+        
+        return div;
+    }
+
+    updateConversationListUI() {
+        const items = this.elements.conversationsList.querySelectorAll('.conversation-item');
+        items.forEach(item => {
+            if (item.dataset.conversationId === this.currentConversationId) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    }
+
+    deleteConversation(conversationId) {
+        if (this.conversations.length <= 1) {
+            this.showError('至少需要保留一个会话');
+            return;
+        }
+        
+        if (confirm('确定要删除这个会话吗？')) {
+            this.conversations = this.conversations.filter(conv => conv.id !== conversationId);
+            this.saveConversations();
+            
+            // 如果删除的是当前会话，切换到第一个会话
+            if (conversationId === this.currentConversationId) {
+                this.selectConversation(this.conversations[0].id);
+            }
+            
+            this.loadConversations();
+        }
+    }
+
+    // ==================== 重命名功能 ====================
+    
+    showRenameModal() {
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+        
+        this.elements.renameInput.value = conversation.title;
+        this.elements.renameModal.style.display = 'flex';
+        this.elements.renameInput.focus();
+        this.elements.renameInput.select();
+    }
+
+    hideRenameModal() {
+        this.elements.renameModal.style.display = 'none';
+    }
+
+    confirmRename() {
+        const newTitle = this.elements.renameInput.value.trim();
+        if (!newTitle) {
+            this.showError('会话名称不能为空');
+            return;
+        }
+        
+        const conversation = this.getCurrentConversation();
+        if (conversation) {
+            conversation.title = newTitle;
+            conversation.updatedAt = new Date().toISOString();
+            this.saveConversations();
+            
+            this.elements.chatTitle.textContent = newTitle;
+            this.loadConversations();
+        }
+        
+        this.hideRenameModal();
+    }
+
+    // ==================== 消息处理 ====================
+    
     async sendMessage() {
         const message = this.elements.messageInput.value.trim();
         if (!message || !this.currentModel || !this.apiKey || this.isLoading) return;
+
+        const conversation = this.getCurrentConversation();
+        if (!conversation) {
+            this.showError('请先选择或创建一个会话');
+            return;
+        }
 
         this.isLoading = true;
         this.elements.messageInput.value = '';
@@ -204,9 +433,22 @@ class OpenRouterChat {
         this.showTypingIndicator();
         
         try {
-            const response = await this.callOpenRouterAPI(message);
+            const response = await this.callOpenRouterAPI(message, conversation);
             this.hideTypingIndicator();
             this.addMessage('assistant', response, this.currentModel);
+            
+            // 更新会话标题（如果是第一条消息）
+            if (conversation.messages.length === 2 && conversation.title === '新会话') {
+                conversation.title = message.length > 30 ? message.substring(0, 30) + '...' : message;
+                this.elements.chatTitle.textContent = conversation.title;
+            }
+            
+            // 保存会话
+            conversation.updatedAt = new Date().toISOString();
+            conversation.model = this.currentModel;
+            this.saveConversations();
+            this.loadConversations();
+            
         } catch (error) {
             this.hideTypingIndicator();
             this.showError(`发送消息失败: ${error.message}`);
@@ -216,10 +458,10 @@ class OpenRouterChat {
         }
     }
 
-    async callOpenRouterAPI(message) {
-        // 构建消息历史，只包含最近的对话
+    async callOpenRouterAPI(message, conversation) {
+        // 构建消息历史
         const messages = [
-            ...this.chatHistory.slice(-10), // 只保留最近10条消息
+            ...conversation.messages.slice(-10), // 只保留最近10条消息
             { role: 'user', content: message }
         ];
 
@@ -255,8 +497,11 @@ class OpenRouterChat {
     }
 
     addMessage(role, content, model = null) {
-        // 添加到聊天历史
-        this.chatHistory.push({ role, content });
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+        
+        // 添加到会话历史
+        conversation.messages.push({ role, content });
         
         // 创建消息元素
         const messageDiv = document.createElement('div');
@@ -308,6 +553,37 @@ class OpenRouterChat {
         this.scrollToBottom();
     }
 
+    loadConversationMessages(conversation) {
+        conversation.messages.forEach(message => {
+            this.addMessageToUI(message.role, message.content, conversation.model);
+        });
+    }
+
+    addMessageToUI(role, content, model = null) {
+        // 创建消息元素（不添加到会话历史）
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message message-${role}`;
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        
+        if (role === 'assistant' && model) {
+            const messageHeader = document.createElement('div');
+            messageHeader.className = 'message-header';
+            messageHeader.innerHTML = `
+                <span class="model-badge">${model}</span>
+            `;
+            messageDiv.appendChild(messageHeader);
+        }
+        
+        messageContent.textContent = content;
+        messageDiv.appendChild(messageContent);
+        
+        this.elements.chatMessages.appendChild(messageDiv);
+    }
+
+    // ==================== UI 辅助方法 ====================
+    
     showTypingIndicator() {
         const typingDiv = document.createElement('div');
         typingDiv.className = 'message message-assistant';
@@ -356,6 +632,21 @@ class OpenRouterChat {
         this.elements.statusText.textContent = status;
     }
 
+    enableInterface() {
+        this.elements.modelSelect.disabled = false;
+        if (this.currentModel) {
+            this.enableSendButton();
+        }
+    }
+
+    enableSendButton() {
+        const hasMessage = this.elements.messageInput.value.trim().length > 0;
+        const hasModel = this.currentModel.length > 0;
+        const hasApiKey = this.apiKey.length > 0;
+        
+        this.elements.sendButton.disabled = !(hasMessage && hasModel && hasApiKey && !this.isLoading);
+    }
+
     autoResizeTextarea() {
         const textarea = this.elements.messageInput;
         textarea.style.height = 'auto';
@@ -365,6 +656,27 @@ class OpenRouterChat {
 
     scrollToBottom() {
         this.elements.chatMessages.scrollTop = this.elements.chatMessages.scrollHeight;
+    }
+
+    // ==================== 数据持久化 ====================
+    
+    saveConversations() {
+        localStorage.setItem('conversations', JSON.stringify(this.conversations));
+    }
+
+    // ==================== 工具方法 ====================
+    
+    getTimeAgo(dateString) {
+        const now = new Date();
+        const date = new Date(dateString);
+        const diffInSeconds = Math.floor((now - date) / 1000);
+        
+        if (diffInSeconds < 60) return '刚刚';
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}分钟前`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}小时前`;
+        if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}天前`;
+        
+        return date.toLocaleDateString();
     }
 }
 
