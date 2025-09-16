@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRouter AI 多模型聊天</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🤖 OpenRouter AI 多模型聊天</h1>
+            <div class="controls">
+                <div class="api-key-section">
+                    <input type="password" id="apiKey" placeholder="输入您的 OpenRouter API Key" class="api-key-input">
+                    <button id="saveApiKey" class="save-btn">保存</button>
+                </div>
+                <div class="model-section">
+                    <label for="modelSelect">选择模型:</label>
+                    <select id="modelSelect" class="model-select">
+                        <option value="">加载中...</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <main class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <h3>欢迎使用 OpenRouter AI 聊天！</h3>
+                    <p>请先输入您的 API Key，然后选择一个模型开始对话。</p>
+                    <p>您可以在对话过程中随时切换不同的模型。</p>
+                </div>
+            </div>
+            
+            <div class="input-section">
+                <div class="input-container">
+                    <textarea id="messageInput" placeholder="输入您的消息..." class="message-input" rows="1"></textarea>
+                    <button id="sendButton" class="send-btn" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                        </svg>
+                    </button>
+                </div>
+                <div class="status-bar">
+                    <span id="statusText">请输入 API Key</span>
+                    <span id="currentModel">未选择模型</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
