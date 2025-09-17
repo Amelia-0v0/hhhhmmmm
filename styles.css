@@ -347,6 +347,36 @@ body {
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.search-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #4a5568;
+    transition: color 0.3s ease;
+}
+
+.search-toggle-label:hover {
+    color: #2d3748;
+}
+
+.search-toggle-label svg {
+    color: #667eea;
+    transition: color 0.3s ease;
+}
+
+.search-toggle-label:hover svg {
+    color: #5a67d8;
+}
+
+#searchToggle {
+    transform: scale(1.2);
+    accent-color: #667eea;
+}
+
 .input-container {
     display: flex;
     gap: 12px;
@@ -386,6 +416,34 @@ body {
     max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.memo-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+}
+
+.memo-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+.memo-status {
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
 .chat-container {

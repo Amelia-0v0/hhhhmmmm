@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Test - OpenRouter AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            height: 100vh;
+            color: #2d3748;
+        }
+
+        .test-container {
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .test-section {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #1a202c;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .role-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            min-height: 48px;
+            white-space: nowrap;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 16px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 24px;
+            font-size: 15px;
+            resize: none;
+            background: #fafbfc;
+        }
+
+        .send-btn {
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #4a5568;
+            margin-bottom: 16px;
+        }
+
+        .model-select {
+            padding: 10px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            min-width: 220px;
+            margin-bottom: 16px;
+        }
+
+        .status-info {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #4a5568;
+            margin-top: 12px;
+        }
+
+        .test-result {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 4px 0;
+        }
+
+        .test-pass {
+            background: #f0fff4;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .test-fail {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #feb2b2;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>UI Elements Test</h1>
+        
+        <div class="test-section">
+            <div class="test-title">1. Model Selection</div>
+            <select class="model-select" id="testModelSelect">
+                <option value="">选择模型...</option>
+                <option value="test">测试模型</option>
+            </select>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">2. Search Toggle</div>
+            <label class="search-toggle-label" id="testSearchLabel">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="checkbox" id="testSearchToggle">
+                <span>联网搜索</span>
+            </label>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">3. Input Section</div>
+            <div class="input-container" id="testInputContainer">
+                <button class="role-btn" id="testRoleBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    <span>默认助手</span>
+                </button>
+                <textarea class="message-input" id="testMessageInput" placeholder="输入测试消息..." rows="1"></textarea>
+                <button class="send-btn" id="testSendBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">4. Test Results</div>
+            <div id="testResults">
+                <!-- Results will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== UI Test Started ===');
+            
+            const testElements = [
+                { id: 'testModelSelect', name: 'Model Select' },
+                { id: 'testSearchLabel', name: 'Search Toggle Label' },
+                { id: 'testSearchToggle', name: 'Search Toggle Checkbox' },
+                { id: 'testInputContainer', name: 'Input Container' },
+                { id: 'testRoleBtn', name: 'Role Button' },
+                { id: 'testMessageInput', name: 'Message Input' },
+                { id: 'testSendBtn', name: 'Send Button' }
+            ];
+
+            const resultsContainer = document.getElementById('testResults');
+            let allPassed = true;
+
+            testElements.forEach(test => {
+                const element = document.getElementById(test.id);
+                const resultDiv = document.createElement('div');
+                
+                if (element) {
+                    const styles = window.getComputedStyle(element);
+                    const isVisible = styles.display !== 'none' && 
+                                    styles.visibility !== 'hidden' && 
+                                    styles.opacity !== '0';
+                    
+                    if (isVisible) {
+                        resultDiv.className = 'test-result test-pass';
+                        resultDiv.textContent = `✓ ${test.name}: VISIBLE (display: ${styles.display})`;
+                        console.log(`✓ ${test.name}: PASS`);
+                    } else {
+                        resultDiv.className = 'test-result test-fail';
+                        resultDiv.textContent = `✗ ${test.name}: HIDDEN (display: ${styles.display}, visibility: ${styles.visibility}, opacity: ${styles.opacity})`;
+                        console.log(`✗ ${test.name}: FAIL`);
+                        allPassed = false;
+                    }
+                } else {
+                    resultDiv.className = 'test-result test-fail';
+                    resultDiv.textContent = `✗ ${test.name}: NOT FOUND`;
+                    console.log(`✗ ${test.name}: NOT FOUND`);
+                    allPassed = false;
+                }
+                
+                resultsContainer.appendChild(resultDiv);
+            });
+
+            // Overall result
+            const overallDiv = document.createElement('div');
+            overallDiv.className = `test-result ${allPassed ? 'test-pass' : 'test-fail'}`;
+            overallDiv.textContent = allPassed ? '🎉 All UI elements are visible!' : '⚠️ Some UI elements have display issues';
+            overallDiv.style.marginTop = '16px';
+            overallDiv.style.fontWeight = '600';
+            resultsContainer.appendChild(overallDiv);
+
+            console.log('=== UI Test Complete ===');
+            console.log(`Overall result: ${allPassed ? 'PASS' : 'FAIL'}`);
+        });
+    </script>
+</body>
+</html>

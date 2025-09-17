@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRouter AI 多模型聊天</title>
+    <link rel="stylesheet" href="styles.css?v=1.1">
+    <style>
+        /* Critical CSS for role button - ensure it displays */
+        .role-btn {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            padding: 12px 16px !important;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 20px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 2px 8px rgba(240, 147, 251, 0.3) !important;
+            white-space: nowrap !important;
+            min-height: 48px !important;
+        }
+        
+        .input-container {
+            display: flex !important;
+            gap: 12px !important;
+            align-items: flex-end !important;
+            margin-bottom: 12px !important;
+        }
+        
+        .search-toggle-label {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            margin-left: 20px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            color: #4a5568 !important;
+        }
+        
+        /* Ensure input section and message input are visible */
+        .input-section {
+            padding: 24px 32px !important;
+            background: white !important;
+            border-top: 1px solid #e2e8f0 !important;
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05) !important;
+        }
+        
+        .message-input {
+            flex: 1 !important;
+            padding: 16px 20px !important;
+            border: 2px solid #e2e8f0 !important;
+            border-radius: 24px !important;
+            font-size: 15px !important;
+            font-family: inherit !important;
+            resize: none !important;
+            max-height: 120px !important;
+            transition: all 0.3s ease !important;
+            background: #fafbfc !important;
+        }
+        
+        .send-btn {
+            width: 48px !important;
+            height: 48px !important;
+            border: none !important;
+            border-radius: 50% !important;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3) !important;
+        }
+        
+        .status-bar {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            font-size: 13px !important;
+            color: #718096 !important;
+        }
+        
+        /* Ensure chat messages area is visible */
+        .chat-messages {
+            flex: 1 !important;
+            overflow-y: auto !important;
+            padding: 24px 32px !important;
+            background: #fafbfc !important;
+        }
+        
+        .welcome-message {
+            text-align: center !important;
+            padding: 48px 32px !important;
+            background: white !important;
+            border-radius: 16px !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+            margin-bottom: 24px !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        
+        .chat-container {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 左侧会话列表 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🗨️ 会话列表</h2>
+                <div class="sidebar-actions">
+                    <button id="settingsBtn" class="settings-btn" title="设置">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m15.5-3.5L19 12l-2.5 2.5M6.5 8.5L4 12l2.5 2.5"></path>
+                        </svg>
+                    </button>
+                    <button id="newChatBtn" class="new-chat-btn" title="新建会话">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="conversations-container">
+                <div class="conversations-list" id="conversationsList">
+                    <!-- 会话项将通过 JavaScript 动态生成 -->
+                </div>
+                <div class="load-more-container">
+                    <button id="loadMoreBtn" class="load-more-btn" style="display: none;">加载更多会话</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 右侧主要内容区域 -->
+        <main class="main-content">
+            <!-- 顶部控制栏 -->
+            <header class="header">
+                <div class="chat-title">
+                    <h1 id="chatTitle">🤖 OpenRouter AI 多模型聊天</h1>
+                    <button id="renameChatBtn" class="rename-btn" title="重命名会话" style="display: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="controls">
+                    <div class="memo-section">
+                        <button id="memoBtn" class="memo-btn" title="查看备忘录" style="display: none;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14,2 14,8 20,8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10,9 9,9 8,9"></polyline>
+                            </svg>
+                            <span class="memo-status" id="memoStatus"></span>
+                        </button>
+                        <button id="settingsBtn" class="settings-btn-main" title="设置">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m15.5-3.5L19 12l-2.5 2.5M6.5 8.5L4 12l2.5 2.5"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="api-key-section">
+                        <input type="password" id="apiKey" placeholder="输入您的 OpenRouter API Key" class="api-key-input">
+                        <button id="saveApiKey" class="save-btn">保存</button>
+                    </div>
+                    <div class="model-section">
+                        <label for="modelSelect">选择模型:</label>
+                        <select id="modelSelect" class="model-select">
+                            <option value="">加载中...</option>
+                        </select>
+                        <label class="search-toggle-label" title="开启后，将联网搜索最新信息来回答问题">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input type="checkbox" id="searchToggle">
+                            <span>联网搜索</span>
+                        </label>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 聊天区域 -->
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="welcome-message">
+                        <h3>欢迎使用 OpenRouter AI 聊天！</h3>
+                        <p>请先输入您的 API Key，然后选择一个模型开始对话。</p>
+                        <p>您可以在对话过程中随时切换不同的模型。</p>
+                        <p>点击左侧的"+"按钮创建新会话，或选择现有会话继续对话。</p>
+                    </div>
+                </div>
+                
+                <div class="input-section">
+                    <div class="input-container">
+                        <button id="roleBtn" class="role-btn" title="设置AI角色">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <span id="currentRoleName">默认助手</span>
+                        </button>
+                        <textarea id="messageInput" placeholder="输入您的消息..." class="message-input" rows="1"></textarea>
+                        <button id="sendButton" class="send-btn" disabled>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="status-bar">
+                        <span id="statusText">请输入 API Key</span>
+                        <span id="currentModel">未选择模型</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 备忘录模态框 -->
+    <div id="memoModal" class="modal" style="display: none;">
+        <div class="modal-content memo-modal-content">
+            <div class="modal-header">
+                <h3>📝 会话备忘录</h3>
+                <button id="closeMemoModal" class="close-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="memo-info">
+                <p>备忘录包含了早期对话的总结，帮助保持上下文连续性。</p>
+                <div class="memo-stats">
+                    <span id="memoMessageCount">消息数: 0</span>
+                    <span id="memoCreatedAt">创建时间: --</span>
+                </div>
+            </div>
+            <div class="memo-content-section">
+                <label for="memoContent">备忘录内容:</label>
+                <textarea id="memoContent" class="memo-textarea" placeholder="暂无备忘录内容..." readonly></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button id="editMemoBtn" class="edit-btn">编辑</button>
+                <button id="saveMemoBtn" class="save-btn" style="display: none;">保存</button>
+                <button id="cancelEditBtn" class="cancel-btn" style="display: none;">取消</button>
+                <button id="regenerateMemoBtn" class="regenerate-btn">重新生成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 角色设定模态框 -->
+    <div id="roleModal" class="modal" style="display: none;">
+        <div class="modal-content role-modal-content">
+            <div class="modal-header">
+                <h3>🎭 AI角色设定</h3>
+                <button id="closeRoleModal" class="close-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="role-templates">
+                <h4>预设角色模板</h4>
+                <div class="template-grid">
+                    <button class="template-btn" data-template="default">
+                        <div class="template-icon">🤖</div>
+                        <div class="template-name">默认助手</div>
+                        <div class="template-desc">通用AI助手，友好且有帮助</div>
+                    </button>
+                    <button class="template-btn" data-template="writer">
+                        <div class="template-icon">✍️</div>
+                        <div class="template-name">创意写手</div>
+                        <div class="template-desc">专业的创意写作和文案助手</div>
+                    </button>
+                    <button class="template-btn" data-template="analyst">
+                        <div class="template-icon">📊</div>
+                        <div class="template-name">数据分析师</div>
+                        <div class="template-desc">专业的数据分析和洞察专家</div>
+                    </button>
+                    <button class="template-btn" data-template="teacher">
+                        <div class="template-icon">👨‍🏫</div>
+                        <div class="template-name">耐心老师</div>
+                        <div class="template-desc">耐心细致的教学和解答专家</div>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="role-custom">
+                <h4>自定义角色</h4>
+                <div class="role-form">
+                    <div class="form-group">
+                        <label for="roleName">角色名称:</label>
+                        <input type="text" id="roleName" class="role-input" placeholder="输入角色名称" maxlength="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="roleDescription">角色描述:</label>
+                        <textarea id="roleDescription" class="role-textarea" placeholder="详细描述AI的角色特征、背景、专长等..." rows="4"></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button id="resetRoleBtn" class="reset-btn">重置为默认</button>
+                <button id="saveRoleBtn" class="save-role-btn">保存角色</button>
+                <button id="cancelRoleBtn" class="cancel-btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ 对话设置</h3>
+                <button id="closeSettingsModal" class="close-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="settings-content">
+                <div class="setting-group">
+                    <label for="messageThreshold">对话轮次阈值:</label>
+                    <input type="number" id="messageThreshold" min="10" max="100" value="20" class="setting-input">
+                    <small>当对话超过此轮次时，自动生成备忘录</small>
+                </div>
+                <div class="setting-group">
+                    <label for="keepRecentMessages">保留最新消息数:</label>
+                    <input type="number" id="keepRecentMessages" min="5" max="20" value="10" class="setting-input">
+                    <small>生成备忘录后保留的最新对话轮次</small>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="autoMemoEnabled" checked>
+                        启用自动备忘录生成
+                    </label>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button id="saveSettings" class="confirm-btn">保存设置</button>
+                <button id="cancelSettings" class="cancel-btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重命名对话框 -->
+    <div id="renameModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>重命名会话</h3>
+            <input type="text" id="renameInput" class="rename-input" placeholder="输入新的会话名称">
+            <div class="modal-buttons">
+                <button id="confirmRename" class="confirm-btn">确认</button>
+                <button id="cancelRename" class="cancel-btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Debug script to check UI elements and styles
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== UI Debug Information ===');
+            
+            const elements = {
+                roleBtn: document.getElementById('roleBtn'),
+                inputContainer: document.querySelector('.input-container'),
+                inputSection: document.querySelector('.input-section'),
+                messageInput: document.getElementById('messageInput'),
+                sendButton: document.getElementById('sendButton'),
+                searchToggle: document.getElementById('searchToggle'),
+                chatMessages: document.getElementById('chatMessages')
+            };
+            
+            Object.entries(elements).forEach(([name, element]) => {
+                if (element) {
+                    const styles = window.getComputedStyle(element);
+                    console.log(`${name}:`, {
+                        exists: true,
+                        display: styles.display,
+                        visibility: styles.visibility,
+                        opacity: styles.opacity,
+                        position: styles.position,
+                        zIndex: styles.zIndex,
+                        width: styles.width,
+                        height: styles.height
+                    });
+                } else {
+                    console.log(`${name}: NOT FOUND`);
+                }
+            });
+            
+            console.log('CSS link loaded:', !!document.querySelector('link[href*="styles.css"]'));
+            console.log('=== End Debug Information ===');
+        });
+    </script>
+
+    <script src="script.js"></script>
+</body>
+</html>
