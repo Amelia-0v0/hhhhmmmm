@@ -1,5 +1,6 @@
 class OpenRouterChat {
     constructor() {
+        this.searchApiUrl = 'https://<YOUR_VERCEL_PROJECT_NAME>.vercel.app/api/search'; // 部署后需要替换成你自己的 Vercel URL
         this.apiKey = localStorage.getItem('openrouter_api_key') || '';
         this.currentModel = '';
         this.availableModels = [];
@@ -37,6 +38,7 @@ class OpenRouterChat {
 
     initializeElements() {
         this.elements = {
+            searchToggle: document.getElementById('searchToggle'), // 新增
             // API 和模型相关
             apiKeyInput: document.getElementById('apiKey'),
             saveApiKeyBtn: document.getElementById('saveApiKey'),
@@ -645,6 +647,9 @@ class OpenRouterChat {
     
     async sendMessage() {
         const message = this.elements.messageInput.value.trim();
+        const useSearch = this.elements.searchToggle.checked; // 检查搜索开关是否开启
+
+        // 基础校验，确保可以发送消息
         if (!message || !this.currentModel || !this.apiKey || this.isLoading) return;
 
         const conversation = this.getCurrentConversation();
@@ -653,44 +658,88 @@ class OpenRouterChat {
             return;
         }
 
+        // 进入加载状态，禁用输入和发送按钮
         this.isLoading = true;
         this.elements.messageInput.value = '';
+        this.autoResizeTextarea(); // 清空后重置文本框高度
         this.elements.sendButton.disabled = true;
-        
-        // 添加用户消息
+
+        // 立即在界面上显示用户的消息
         this.addMessage('user', message);
         
-        // 显示输入指示器
+        // 显示“正在输入”动画
         this.showTypingIndicator();
-        
+
         try {
-            const response = await this.callOpenRouterAPI(message, conversation);
+            let responseContent = '';
+
+            if (useSearch) {
+                // --- 分支1: 如果开启了搜索，调用我们的后端 API ---
+                this.updateStatus('正在联网搜索信息...'); // 更新状态栏提示
+                
+                // 注意：这里的 this.searchApiUrl 需要在 constructor 中定义好
+                const response = await fetch(this.searchApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: message,
+                        model: this.currentModel // 将当前选择的模型也传递给后端
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({})); // 尝试解析错误信息
+                    throw new Error(errorData.error || `搜索服务返回 HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                responseContent = data.answer;
+
+            } else {
+                // --- 分支2: 如果未开启搜索，使用你原来的直接调用 OpenRouter 的逻辑 ---
+                this.updateStatus('正在思考...');
+                responseContent = await this.callOpenRouterAPI(message, conversation);
+            }
+
+            // 成功获取到回答后，隐藏“正在输入”动画
             this.hideTypingIndicator();
-            this.addMessage('assistant', response, this.currentModel);
-            
-            // 更新会话标题（如果是第一条消息）
+
+            // 在 AI 的回答前加上一个小图标，以视觉上区分是否联网
+            const prefix = useSearch ? '🌐 (联网) ' : '';
+            this.addMessage('assistant', prefix + responseContent, this.currentModel);
+
+            // --- 后续的会话管理逻辑 (保持不变) ---
+
+            // 如果是新会话的第一条消息，自动根据消息内容重命名会话标题
             if (conversation.messages.length === 2 && conversation.title === '新会话') {
                 conversation.title = message.length > 30 ? message.substring(0, 30) + '...' : message;
                 this.elements.chatTitle.textContent = conversation.title;
             }
             
-            // 保存会话
+            // 更新会话的最后修改时间及所用模型
             conversation.updatedAt = new Date().toISOString();
             conversation.model = this.currentModel;
+
+            // 保存所有会话到本地存储
             this.saveConversations();
+
+            // 重新加载左侧的会话列表以更新预览和顺序
             this.loadConversations();
             
-            // 检测是否需要生成备忘录
+            // 检查是否满足条件以自动生成备忘录
             if (this.memoSettings.autoMemoEnabled && conversation.messages.length >= this.memoSettings.messageThreshold) {
                 await this.generateMemoAutomatically(conversation);
             }
-            
+
         } catch (error) {
+            // 如果发生任何错误，隐藏“正在输入”动画并显示错误信息
             this.hideTypingIndicator();
             this.showError(`发送消息失败: ${error.message}`);
         } finally {
+            // 无论成功或失败，最后都恢复应用的正常状态
             this.isLoading = false;
-            this.enableSendButton();
+            this.enableSendButton(); // 重新启用发送按钮
+            this.updateStatus('模型已就绪'); // 更新状态栏提示
+            this.elements.messageInput.focus(); // 让用户可以继续输入
         }
     }
 
