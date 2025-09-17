@@ -588,6 +588,7 @@ class OpenRouterChat {
         // 创建消息元素
         const messageDiv = document.createElement('div');
         messageDiv.className = `message message-${role}`;
+        messageDiv.dataset.messageIndex = conversation.messages.length - 1;
         
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content';
@@ -602,7 +603,31 @@ class OpenRouterChat {
             messageDiv.appendChild(messageHeader);
         }
         
-        messageContent.textContent = content;
+        // 添加编辑按钮（仅对用户消息）
+        if (role === 'user') {
+            const messageActions = document.createElement('div');
+            messageActions.className = 'message-actions';
+            messageActions.innerHTML = `
+                <button class="edit-message-btn" title="编辑消息">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+            `;
+            messageContent.appendChild(messageActions);
+            
+            // 绑定编辑按钮事件
+            const editBtn = messageActions.querySelector('.edit-message-btn');
+            editBtn.addEventListener('click', () => this.startEditMessage(messageDiv));
+        }
+        
+        // 添加消息文本
+        const messageText = document.createElement('span');
+        messageText.className = 'message-text';
+        messageText.textContent = content;
+        messageContent.appendChild(messageText);
+        
         messageDiv.appendChild(messageContent);
         
         // 移除欢迎消息
@@ -635,16 +660,15 @@ class OpenRouterChat {
         this.scrollToBottom();
     }
 
-    loadConversationMessages(conversation) {
-        conversation.messages.forEach(message => {
-            this.addMessageToUI(message.role, message.content, conversation.model);
-        });
-    }
-
-    addMessageToUI(role, content, model = null) {
+    addMessageToUI(role, content, model = null, messageIndex = null) {
         // 创建消息元素（不添加到会话历史）
         const messageDiv = document.createElement('div');
         messageDiv.className = `message message-${role}`;
+        
+        // 如果提供了索引，设置data属性
+        if (messageIndex !== null) {
+            messageDiv.dataset.messageIndex = messageIndex;
+        }
         
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content';
@@ -658,10 +682,39 @@ class OpenRouterChat {
             messageDiv.appendChild(messageHeader);
         }
         
-        messageContent.textContent = content;
-        messageDiv.appendChild(messageContent);
+        // 添加编辑按钮（仅对用户消息且有索引时）
+        if (role === 'user' && messageIndex !== null) {
+            const messageActions = document.createElement('div');
+            messageActions.className = 'message-actions';
+            messageActions.innerHTML = `
+                <button class="edit-message-btn" title="编辑消息">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+            `;
+            messageContent.appendChild(messageActions);
+            
+            // 绑定编辑按钮事件
+            const editBtn = messageActions.querySelector('.edit-message-btn');
+            editBtn.addEventListener('click', () => this.startEditMessage(messageDiv));
+        }
         
+        // 添加消息文本
+        const messageText = document.createElement('span');
+        messageText.className = 'message-text';
+        messageText.textContent = content;
+        messageContent.appendChild(messageText);
+        
+        messageDiv.appendChild(messageContent);
         this.elements.chatMessages.appendChild(messageDiv);
+    }
+
+    loadConversationMessages(conversation) {
+        conversation.messages.forEach((message, index) => {
+            this.addMessageToUI(message.role, message.content, conversation.model, index);
+        });
     }
 
     // ==================== UI 辅助方法 ====================
@@ -970,6 +1023,177 @@ ${messagesToSummarize.map((msg, index) =>
         
         this.hideSettingsModal();
         this.addSystemMessage('⚙️ 设置已保存');
+    }
+
+    startEditMessage(messageDiv) {
+        const messageIndex = parseInt(messageDiv.dataset.messageIndex);
+        const conversation = this.getCurrentConversation();
+        if (!conversation || messageIndex < 0 || messageIndex >= conversation.messages.length) return;
+        
+        const message = conversation.messages[messageIndex];
+        if (message.role !== 'user') return;
+        
+        const messageContent = messageDiv.querySelector('.message-content');
+        const messageText = messageDiv.querySelector('.message-text');
+        const messageActions = messageDiv.querySelector('.message-actions');
+        
+        // 创建编辑界面
+        const editContainer = document.createElement('div');
+        editContainer.className = 'message-edit-mode';
+        
+        const editTextarea = document.createElement('textarea');
+        editTextarea.className = 'message-edit-textarea';
+        editTextarea.value = message.content;
+        editTextarea.rows = Math.max(2, Math.ceil(message.content.length / 50));
+        
+        const editButtons = document.createElement('div');
+        editButtons.className = 'message-edit-buttons';
+        editButtons.innerHTML = `
+            <button class="edit-save-btn">保存</button>
+            <button class="edit-cancel-btn">取消</button>
+        `;
+        
+        editContainer.appendChild(editTextarea);
+        editContainer.appendChild(editButtons);
+        
+        // 隐藏原内容，显示编辑界面
+        messageText.style.display = 'none';
+        messageActions.style.display = 'none';
+        messageContent.appendChild(editContainer);
+        
+        // 绑定按钮事件
+        const saveBtn = editButtons.querySelector('.edit-save-btn');
+        const cancelBtn = editButtons.querySelector('.edit-cancel-btn');
+        
+        saveBtn.addEventListener('click', () => {
+            this.saveEditedMessage(messageIndex, editTextarea.value.trim(), messageDiv, editContainer);
+        });
+        
+        cancelBtn.addEventListener('click', () => {
+            this.cancelEditMessage(messageDiv, editContainer);
+        });
+        
+        // 键盘快捷键
+        editTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                e.preventDefault();
+                this.saveEditedMessage(messageIndex, editTextarea.value.trim(), messageDiv, editContainer);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                this.cancelEditMessage(messageDiv, editContainer);
+            }
+        });
+        
+        editTextarea.focus();
+        editTextarea.select();
+    }
+
+    async saveEditedMessage(messageIndex, newContent, messageDiv, editContainer) {
+        if (!newContent) {
+            this.showError('消息内容不能为空');
+            return;
+        }
+        
+        const conversation = this.getCurrentConversation();
+        if (!conversation || messageIndex < 0 || messageIndex >= conversation.messages.length) return;
+        
+        const message = conversation.messages[messageIndex];
+        if (message.role !== 'user') return;
+        
+        // 如果内容没有变化，直接取消编辑
+        if (message.content === newContent) {
+            this.cancelEditMessage(messageDiv, editContainer);
+            return;
+        }
+        
+        // 更新消息内容
+        message.content = newContent;
+        
+        // 删除该消息之后的所有消息
+        conversation.messages = conversation.messages.slice(0, messageIndex + 1);
+        
+        // 更新会话时间
+        conversation.updatedAt = new Date().toISOString();
+        this.saveConversations();
+        
+        // 更新UI显示
+        this.cancelEditMessage(messageDiv, editContainer);
+        const messageText = messageDiv.querySelector('.message-text');
+        messageText.textContent = newContent;
+        
+        // 删除该消息之后的所有UI元素
+        this.removeMessagesAfterIndex(messageIndex);
+        
+        // 显示系统消息
+        this.addSystemMessage('✏️ 消息已编辑，正在重新生成回答...');
+        
+        // 自动触发LLM重新生成回答
+        await this.regenerateResponseAfterEdit(newContent);
+    }
+
+    cancelEditMessage(messageDiv, editContainer) {
+        const messageText = messageDiv.querySelector('.message-text');
+        const messageActions = messageDiv.querySelector('.message-actions');
+        
+        // 恢复原内容显示
+        messageText.style.display = '';
+        messageActions.style.display = '';
+        
+        // 移除编辑界面
+        editContainer.remove();
+    }
+
+    removeMessagesAfterIndex(messageIndex) {
+        const allMessages = this.elements.chatMessages.querySelectorAll('.message[data-message-index]');
+        
+        allMessages.forEach(msgDiv => {
+            const index = parseInt(msgDiv.dataset.messageIndex);
+            if (index > messageIndex) {
+                msgDiv.remove();
+            }
+        });
+    }
+
+    async regenerateResponseAfterEdit(editedMessage) {
+        if (!this.currentModel || !this.apiKey || this.isLoading) {
+            this.showError('无法重新生成回答：请检查API Key和模型设置');
+            return;
+        }
+
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+
+        this.isLoading = true;
+        this.elements.sendButton.disabled = true;
+        
+        // 显示输入指示器
+        this.showTypingIndicator();
+        
+        try {
+            const response = await this.callOpenRouterAPI(editedMessage, conversation);
+            this.hideTypingIndicator();
+            
+            // 添加新的AI回答
+            this.addMessage('assistant', response, this.currentModel);
+            
+            // 保存会话
+            conversation.updatedAt = new Date().toISOString();
+            conversation.model = this.currentModel;
+            this.saveConversations();
+            this.loadConversations();
+            
+            // 检测是否需要生成备忘录
+            if (this.memoSettings.autoMemoEnabled && conversation.messages.length >= this.memoSettings.messageThreshold) {
+                await this.generateMemoAutomatically(conversation);
+            }
+            
+        } catch (error) {
+            this.hideTypingIndicator();
+            this.showError(`重新生成回答失败: ${error.message}`);
+        } finally {
+            this.isLoading = false;
+            this.enableSendButton();
+        }
     }
 }
 

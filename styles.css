@@ -59,10 +59,10 @@ body {
     padding: 8px;
     color: white;
     cursor: pointer;
-    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all 0.2s ease;
 }
 
 .settings-btn:hover {
@@ -403,6 +403,7 @@ body {
 .message {
     margin-bottom: 24px;
     animation: fadeIn 0.4s ease-out;
+    position: relative;
 }
 
 @keyframes fadeIn {
@@ -908,6 +909,120 @@ body {
 
 .cancel-btn:hover {
     background: #edf2f7;
+}
+
+/* 消息编辑功能样式 */
+.message-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 0.3;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.message:hover .message-actions {
+    opacity: 1;
+}
+
+.edit-message-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.1);
+    color: #4a5568;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-size: 12px;
+}
+
+.edit-message-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+    color: #2d3748;
+}
+
+.message-user .edit-message-btn {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+.message-user .edit-message-btn:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.message-edit-mode {
+    position: relative;
+}
+
+.message-edit-textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 12px 16px;
+    border: 2px solid #667eea;
+    border-radius: 12px;
+    font-size: 15px;
+    font-family: inherit;
+    line-height: 1.5;
+    resize: vertical;
+    background: white;
+    color: #2d3748;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.message-edit-textarea:focus {
+    outline: none;
+    border-color: #5a67d8;
+}
+
+.message-edit-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    justify-content: flex-end;
+}
+
+.edit-save-btn, .edit-cancel-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.edit-save-btn {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+}
+
+.edit-save-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+}
+
+.edit-cancel-btn {
+    background: #f7fafc;
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+}
+
+.edit-cancel-btn:hover {
+    background: #edf2f7;
+}
+
+.message-user .message-content {
+    position: relative;
+}
+
+.message-assistant .message-content {
+    position: relative;
 }
 
 /* 响应式设计 */
