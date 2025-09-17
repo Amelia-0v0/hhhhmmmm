@@ -3,8 +3,8 @@
     "api/search.js": {
       "runtime": "nodejs18.x"
     }
-  },
-  "env": {
-    "OPENROUTER_API_KEY": "@openrouter-api-key"
   }
+//  "env": {
+//     "OPENROUTER_API_KEY": "@openrouter-api-key"
+//   }
 }
