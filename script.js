@@ -516,7 +516,7 @@ class OpenRouterChat {
             
             // 检测是否需要生成备忘录
             if (this.memoSettings.autoMemoEnabled && conversation.messages.length >= this.memoSettings.messageThreshold) {
-                this.regenerateMemo();
+                await this.generateMemoAutomatically(conversation);
             }
             
         } catch (error) {
@@ -777,19 +777,36 @@ class OpenRouterChat {
         try {
             this.updateStatus('正在生成备忘录...');
             
-            // 获取需要总结的消息
-            const messagesToSummarize = conversation.messages.slice(0, -this.memoSettings.keepRecentMessages);
-            
-            if (messagesToSummarize.length === 0) return;
+            // 如果消息数量不足阈值，不生成备忘录
+            if (conversation.messages.length < this.memoSettings.messageThreshold) return;
             
             // 构建总结请求
-            const summaryPrompt = `请将以下对话内容总结为一个简洁的备忘录，保留关键信息和上下文：
+            let summaryPrompt;
+            
+            if (conversation.memo) {
+                // 如果已有备忘录，基于现有备忘录+当前所有消息生成新备忘录
+                summaryPrompt = `请基于以下现有备忘录和新的对话内容，生成一个更新的备忘录：
+
+**现有备忘录：**
+${conversation.memo}
+
+**新的对话内容：**
+${conversation.messages.map((msg, index) => 
+    `${index + 1}. ${msg.role === 'user' ? '用户' : 'AI'}: ${msg.content}`
+).join('\n')}
+
+请将现有备忘录与新对话内容整合，生成一个完整的更新备忘录，保持简洁但包含重要细节。`;
+            } else {
+                // 如果没有备忘录，总结当前所有消息（除了最后一条）
+                const messagesToSummarize = conversation.messages.slice(0, -1);
+                summaryPrompt = `请将以下对话内容总结为一个简洁的备忘录，保留关键信息和上下文：
 
 ${messagesToSummarize.map((msg, index) => 
     `${index + 1}. ${msg.role === 'user' ? '用户' : 'AI'}: ${msg.content}`
 ).join('\n')}
 
 请用中文总结，保持简洁但包含重要细节。`;
+            }
 
             const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
@@ -815,10 +832,14 @@ ${messagesToSummarize.map((msg, index) =>
             const data = await response.json();
             const memoContent = data.choices[0].message.content;
 
-            // 保存备忘录
+            // 保存新备忘录
+            const totalMessageCount = (conversation.memoMessageCount || 0) + conversation.messages.length - 1;
             conversation.memo = memoContent;
             conversation.memoCreatedAt = new Date().toISOString();
-            conversation.memoMessageCount = messagesToSummarize.length;
+            conversation.memoMessageCount = totalMessageCount;
+            
+            // 关键修复：只保留最后一条消息
+            conversation.messages = conversation.messages.slice(-1);
             
             this.saveConversations();
             this.updateMemoStatus();
@@ -899,13 +920,11 @@ ${messagesToSummarize.map((msg, index) =>
         const conversation = this.getCurrentConversation();
         if (!conversation) return;
         
-        if (confirm('确定要重新生成备忘录吗？这将覆盖当前的备忘录内容。')) {
-            await this.generateMemoAutomatically(conversation);
-            if (conversation.memo) {
-                this.elements.memoContent.value = conversation.memo;
-                this.elements.memoMessageCount.textContent = `消息数: ${conversation.memoMessageCount}`;
-                this.elements.memoCreatedAt.textContent = `创建时间: ${new Date(conversation.memoCreatedAt).toLocaleString()}`;
-            }
+        await this.generateMemoAutomatically(conversation);
+        if (conversation.memo) {
+            this.elements.memoContent.value = conversation.memo;
+            this.elements.memoMessageCount.textContent = `消息数: ${conversation.memoMessageCount}`;
+            this.elements.memoCreatedAt.textContent = `创建时间: ${new Date(conversation.memoCreatedAt).toLocaleString()}`;
         }
     }
     
