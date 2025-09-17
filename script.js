@@ -1,6 +1,6 @@
 class OpenRouterChat {
     constructor() {
-        this.searchApiUrl = 'https://<YOUR_VERCEL_PROJECT_NAME>.vercel.app/api/search'; // 部署后需要替换成你自己的 Vercel URL
+        this.searchApiUrl = 'https://hhhhmmm.vercel.app/api/search'; // 部署后需要替换成你自己的 Vercel URL
         this.apiKey = localStorage.getItem('openrouter_api_key') || '';
         this.currentModel = '';
         this.availableModels = [];
