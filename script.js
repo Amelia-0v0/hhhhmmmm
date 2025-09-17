@@ -11,6 +11,13 @@ class OpenRouterChat {
         this.conversationsPerPage = 20;
         this.conversationsLoaded = 0;
         
+        // 备忘录设置
+        this.memoSettings = {
+            messageThreshold: parseInt(localStorage.getItem('memo_message_threshold')) || 20,
+            keepRecentMessages: parseInt(localStorage.getItem('memo_keep_recent')) || 10,
+            autoMemoEnabled: localStorage.getItem('memo_auto_enabled') !== 'false'
+        };
+        
         this.initializeElements();
         this.bindEvents();
         this.loadApiKey();
@@ -43,6 +50,29 @@ class OpenRouterChat {
             newChatBtn: document.getElementById('newChatBtn'),
             loadMoreBtn: document.getElementById('loadMoreBtn'),
             renameChatBtn: document.getElementById('renameChatBtn'),
+            
+            // 备忘录相关
+            memoBtn: document.getElementById('memoBtn'),
+            memoStatus: document.getElementById('memoStatus'),
+            memoModal: document.getElementById('memoModal'),
+            closeMemoModal: document.getElementById('closeMemoModal'),
+            memoContent: document.getElementById('memoContent'),
+            memoMessageCount: document.getElementById('memoMessageCount'),
+            memoCreatedAt: document.getElementById('memoCreatedAt'),
+            editMemoBtn: document.getElementById('editMemoBtn'),
+            saveMemoBtn: document.getElementById('saveMemoBtn'),
+            cancelEditBtn: document.getElementById('cancelEditBtn'),
+            regenerateMemoBtn: document.getElementById('regenerateMemoBtn'),
+            
+            // 设置相关
+            settingsBtn: document.getElementById('settingsBtn'),
+            settingsModal: document.getElementById('settingsModal'),
+            closeSettingsModal: document.getElementById('closeSettingsModal'),
+            messageThreshold: document.getElementById('messageThreshold'),
+            keepRecentMessages: document.getElementById('keepRecentMessages'),
+            autoMemoEnabled: document.getElementById('autoMemoEnabled'),
+            saveSettings: document.getElementById('saveSettings'),
+            cancelSettings: document.getElementById('cancelSettings'),
             
             // 模态框
             renameModal: document.getElementById('renameModal'),
@@ -79,6 +109,20 @@ class OpenRouterChat {
         this.elements.loadMoreBtn.addEventListener('click', () => this.loadMoreConversations());
         this.elements.renameChatBtn.addEventListener('click', () => this.showRenameModal());
         
+        // 备忘录事件
+        this.elements.memoBtn.addEventListener('click', () => this.showMemoModal());
+        this.elements.closeMemoModal.addEventListener('click', () => this.hideMemoModal());
+        this.elements.editMemoBtn.addEventListener('click', () => this.editMemo());
+        this.elements.saveMemoBtn.addEventListener('click', () => this.saveMemo());
+        this.elements.cancelEditBtn.addEventListener('click', () => this.cancelEditMemo());
+        this.elements.regenerateMemoBtn.addEventListener('click', () => this.regenerateMemo());
+        
+        // 设置事件
+        this.elements.settingsBtn.addEventListener('click', () => this.showSettingsModal());
+        this.elements.closeSettingsModal.addEventListener('click', () => this.hideSettingsModal());
+        this.elements.saveSettings.addEventListener('click', () => this.saveSettings());
+        this.elements.cancelSettings.addEventListener('click', () => this.hideSettingsModal());
+        
         // 模态框事件
         this.elements.confirmRename.addEventListener('click', () => this.confirmRename());
         this.elements.cancelRename.addEventListener('click', () => this.hideRenameModal());
@@ -90,6 +134,14 @@ class OpenRouterChat {
         // 点击模态框外部关闭
         this.elements.renameModal.addEventListener('click', (e) => {
             if (e.target === this.elements.renameModal) this.hideRenameModal();
+        });
+        
+        this.elements.memoModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.memoModal) this.hideMemoModal();
+        });
+        
+        this.elements.settingsModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.settingsModal) this.hideSettingsModal();
         });
     }
 
@@ -219,7 +271,10 @@ class OpenRouterChat {
             messages: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            model: this.currentModel || ''
+            model: this.currentModel || '',
+            memo: null, // 备忘录内容
+            memoCreatedAt: null, // 备忘录创建时间
+            memoMessageCount: 0 // 备忘录创建时的消息数量
         };
         
         this.conversations.unshift(conversation);
@@ -250,6 +305,16 @@ class OpenRouterChat {
             this.elements.modelSelect.value = conversation.model;
             this.selectModel(conversation.model);
         }
+        
+        // 更新备忘录状态和按钮显示
+        this.updateMemoStatus();
+        if (conversation.memo) {
+            this.elements.memoBtn.style.display = 'flex';
+        } else {
+            this.elements.memoBtn.style.display = 'none';
+        }
+        
+        this.updateMemoStatus();
     }
 
     getCurrentConversation() {
@@ -449,6 +514,11 @@ class OpenRouterChat {
             this.saveConversations();
             this.loadConversations();
             
+            // 检测是否需要生成备忘录
+            if (this.memoSettings.autoMemoEnabled && conversation.messages.length >= this.memoSettings.messageThreshold) {
+                this.regenerateMemo();
+            }
+            
         } catch (error) {
             this.hideTypingIndicator();
             this.showError(`发送消息失败: ${error.message}`);
@@ -459,11 +529,23 @@ class OpenRouterChat {
     }
 
     async callOpenRouterAPI(message, conversation) {
-        // 构建消息历史
-        const messages = [
-            ...conversation.messages.slice(-10), // 只保留最近10条消息
-            { role: 'user', content: message }
-        ];
+        // 构建消息历史 - 使用备忘录优化上下文
+        let messages = [];
+        
+        // 如果有备忘录，先添加备忘录作为系统消息
+        if (conversation.memo) {
+            messages.push({
+                role: 'system',
+                content: `以下是之前对话的总结备忘录：\n${conversation.memo}\n\n请基于这个背景继续对话。`
+            });
+        }
+        
+        // 添加最近的对话消息
+        const recentMessages = conversation.messages.slice(-this.memoSettings.keepRecentMessages);
+        messages = messages.concat(recentMessages);
+        
+        // 添加当前用户消息
+        messages.push({ role: 'user', content: message });
 
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -677,6 +759,198 @@ class OpenRouterChat {
         if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}天前`;
         
         return date.toLocaleDateString();
+    }
+
+    updateMemoStatus() {
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+        
+        if (conversation.memo) {
+            this.elements.memoStatus.textContent = `${conversation.memoMessageCount}条`;
+            this.elements.memoBtn.style.display = 'flex';
+        } else {
+            this.elements.memoBtn.style.display = 'none';
+        }
+    }
+
+    async generateMemoAutomatically(conversation) {
+        try {
+            this.updateStatus('正在生成备忘录...');
+            
+            // 获取需要总结的消息
+            const messagesToSummarize = conversation.messages.slice(0, -this.memoSettings.keepRecentMessages);
+            
+            if (messagesToSummarize.length === 0) return;
+            
+            // 构建总结请求
+            const summaryPrompt = `请将以下对话内容总结为一个简洁的备忘录，保留关键信息和上下文：
+
+${messagesToSummarize.map((msg, index) => 
+    `${index + 1}. ${msg.role === 'user' ? '用户' : 'AI'}: ${msg.content}`
+).join('\n')}
+
+请用中文总结，保持简洁但包含重要细节。`;
+
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': window.location.origin,
+                    'X-Title': 'OpenRouter Multi-Model Chat - Memo Generation'
+                },
+                body: JSON.stringify({
+                    model: this.currentModel,
+                    messages: [{ role: 'user', content: summaryPrompt }],
+                    temperature: 0.3,
+                    max_tokens: 1000,
+                    stream: false
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`生成备忘录失败: HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const memoContent = data.choices[0].message.content;
+
+            // 保存备忘录
+            conversation.memo = memoContent;
+            conversation.memoCreatedAt = new Date().toISOString();
+            conversation.memoMessageCount = messagesToSummarize.length;
+            
+            this.saveConversations();
+            this.updateMemoStatus();
+            
+            this.addSystemMessage('📝 已自动生成对话备忘录，点击右上角备忘录按钮查看');
+            this.updateStatus('备忘录生成完成');
+            
+        } catch (error) {
+            console.error('生成备忘录失败:', error);
+            this.showError(`生成备忘录失败: ${error.message}`);
+            this.updateStatus('备忘录生成失败');
+        }
+    }
+
+    // ==================== 备忘录管理 ====================
+    
+    showMemoModal() {
+        const conversation = this.getCurrentConversation();
+        if (!conversation || !conversation.memo) return;
+        
+        this.elements.memoContent.value = conversation.memo;
+        this.elements.memoMessageCount.textContent = `消息数: ${conversation.memoMessageCount}`;
+        this.elements.memoCreatedAt.textContent = `创建时间: ${new Date(conversation.memoCreatedAt).toLocaleString()}`;
+        
+        this.elements.memoModal.style.display = 'flex';
+        this.resetMemoEditState();
+    }
+    
+    hideMemoModal() {
+        this.elements.memoModal.style.display = 'none';
+        this.resetMemoEditState();
+    }
+    
+    editMemo() {
+        this.elements.memoContent.readOnly = false;
+        this.elements.memoContent.style.background = 'white';
+        this.elements.editMemoBtn.style.display = 'none';
+        this.elements.saveMemoBtn.style.display = 'inline-block';
+        this.elements.cancelEditBtn.style.display = 'inline-block';
+        this.elements.memoContent.focus();
+    }
+    
+    saveMemo() {
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+        
+        const newContent = this.elements.memoContent.value.trim();
+        if (!newContent) {
+            this.showError('备忘录内容不能为空');
+            return;
+        }
+        
+        conversation.memo = newContent;
+        conversation.updatedAt = new Date().toISOString();
+        this.saveConversations();
+        
+        this.resetMemoEditState();
+        this.addSystemMessage('📝 备忘录已更新');
+    }
+    
+    cancelEditMemo() {
+        const conversation = this.getCurrentConversation();
+        if (conversation && conversation.memo) {
+            this.elements.memoContent.value = conversation.memo;
+        }
+        this.resetMemoEditState();
+    }
+    
+    resetMemoEditState() {
+        this.elements.memoContent.readOnly = true;
+        this.elements.memoContent.style.background = '#f7fafc';
+        this.elements.editMemoBtn.style.display = 'inline-block';
+        this.elements.saveMemoBtn.style.display = 'none';
+        this.elements.cancelEditBtn.style.display = 'none';
+    }
+    
+    async regenerateMemo() {
+        const conversation = this.getCurrentConversation();
+        if (!conversation) return;
+        
+        if (confirm('确定要重新生成备忘录吗？这将覆盖当前的备忘录内容。')) {
+            await this.generateMemoAutomatically(conversation);
+            if (conversation.memo) {
+                this.elements.memoContent.value = conversation.memo;
+                this.elements.memoMessageCount.textContent = `消息数: ${conversation.memoMessageCount}`;
+                this.elements.memoCreatedAt.textContent = `创建时间: ${new Date(conversation.memoCreatedAt).toLocaleString()}`;
+            }
+        }
+    }
+    
+    // ==================== 设置管理 ====================
+    
+    showSettingsModal() {
+        this.elements.messageThreshold.value = this.memoSettings.messageThreshold;
+        this.elements.keepRecentMessages.value = this.memoSettings.keepRecentMessages;
+        this.elements.autoMemoEnabled.checked = this.memoSettings.autoMemoEnabled;
+        
+        this.elements.settingsModal.style.display = 'flex';
+    }
+    
+    hideSettingsModal() {
+        this.elements.settingsModal.style.display = 'none';
+    }
+    
+    saveSettings() {
+        const messageThreshold = parseInt(this.elements.messageThreshold.value);
+        const keepRecentMessages = parseInt(this.elements.keepRecentMessages.value);
+        const autoMemoEnabled = this.elements.autoMemoEnabled.checked;
+        
+        if (messageThreshold < 10 || messageThreshold > 100) {
+            this.showError('对话轮次阈值必须在10-100之间');
+            return;
+        }
+        
+        if (keepRecentMessages < 5 || keepRecentMessages > 20) {
+            this.showError('保留最新消息数必须在5-20之间');
+            return;
+        }
+        
+        this.memoSettings = {
+            messageThreshold,
+            keepRecentMessages,
+            autoMemoEnabled
+        };
+        
+        // 保存到本地存储
+        localStorage.setItem('memo_message_threshold', messageThreshold.toString());
+        localStorage.setItem('memo_keep_recent', keepRecentMessages.toString());
+        localStorage.setItem('memo_auto_enabled', autoMemoEnabled.toString());
+        
+        this.hideSettingsModal();
+        this.addSystemMessage('⚙️ 设置已保存');
     }
 }
 

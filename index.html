@@ -12,12 +12,20 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h2>🗨️ 会话列表</h2>
-                <button id="newChatBtn" class="new-chat-btn" title="新建会话">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                </button>
+                <div class="sidebar-actions">
+                    <button id="settingsBtn" class="settings-btn" title="设置">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m15.5-3.5L19 12l-2.5 2.5M6.5 8.5L4 12l2.5 2.5"></path>
+                        </svg>
+                    </button>
+                    <button id="newChatBtn" class="new-chat-btn" title="新建会话">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
             </div>
             
             <div class="conversations-container">
@@ -45,6 +53,24 @@
                 </div>
                 
                 <div class="controls">
+                    <div class="memo-section">
+                        <button id="memoBtn" class="memo-btn" title="查看备忘录" style="display: none;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14,2 14,8 20,8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10,9 9,9 8,9"></polyline>
+                            </svg>
+                            <span class="memo-status" id="memoStatus"></span>
+                        </button>
+                        <button id="settingsBtn" class="settings-btn-main" title="设置">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m15.5-3.5L19 12l-2.5 2.5M6.5 8.5L4 12l2.5 2.5"></path>
+                            </svg>
+                        </button>
+                    </div>
                     <div class="api-key-section">
                         <input type="password" id="apiKey" placeholder="输入您的 OpenRouter API Key" class="api-key-input">
                         <button id="saveApiKey" class="save-btn">保存</button>
@@ -86,6 +112,75 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- 备忘录模态框 -->
+    <div id="memoModal" class="modal" style="display: none;">
+        <div class="modal-content memo-modal-content">
+            <div class="modal-header">
+                <h3>📝 会话备忘录</h3>
+                <button id="closeMemoModal" class="close-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="memo-info">
+                <p>备忘录包含了早期对话的总结，帮助保持上下文连续性。</p>
+                <div class="memo-stats">
+                    <span id="memoMessageCount">消息数: 0</span>
+                    <span id="memoCreatedAt">创建时间: --</span>
+                </div>
+            </div>
+            <div class="memo-content-section">
+                <label for="memoContent">备忘录内容:</label>
+                <textarea id="memoContent" class="memo-textarea" placeholder="暂无备忘录内容..." readonly></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button id="editMemoBtn" class="edit-btn">编辑</button>
+                <button id="saveMemoBtn" class="save-btn" style="display: none;">保存</button>
+                <button id="cancelEditBtn" class="cancel-btn" style="display: none;">取消</button>
+                <button id="regenerateMemoBtn" class="regenerate-btn">重新生成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ 对话设置</h3>
+                <button id="closeSettingsModal" class="close-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="settings-content">
+                <div class="setting-group">
+                    <label for="messageThreshold">对话轮次阈值:</label>
+                    <input type="number" id="messageThreshold" min="10" max="100" value="20" class="setting-input">
+                    <small>当对话超过此轮次时，自动生成备忘录</small>
+                </div>
+                <div class="setting-group">
+                    <label for="keepRecentMessages">保留最新消息数:</label>
+                    <input type="number" id="keepRecentMessages" min="5" max="20" value="10" class="setting-input">
+                    <small>生成备忘录后保留的最新对话轮次</small>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="autoMemoEnabled" checked>
+                        启用自动备忘录生成
+                    </label>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button id="saveSettings" class="confirm-btn">保存设置</button>
+                <button id="cancelSettings" class="cancel-btn">取消</button>
+            </div>
+        </div>
     </div>
 
     <!-- 重命名对话框 -->
