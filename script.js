@@ -18,11 +18,16 @@ class OpenRouterChat {
             autoMemoEnabled: localStorage.getItem('memo_auto_enabled') !== 'false'
         };
         
+        // 角色设置
+        this.currentRole = JSON.parse(localStorage.getItem('ai_role_setting') || 'null') || this.getDefaultRole();
+        this.roleTemplates = this.getRoleTemplates();
+        
         this.initializeElements();
         this.bindEvents();
         this.loadApiKey();
         this.loadModels();
         this.loadConversations();
+        this.updateRoleDisplay();
         
         // 如果没有会话，创建第一个
         if (this.conversations.length === 0) {
@@ -74,6 +79,18 @@ class OpenRouterChat {
             saveSettings: document.getElementById('saveSettings'),
             cancelSettings: document.getElementById('cancelSettings'),
             
+            // 角色相关
+            roleSelect: document.getElementById('roleSelect'),
+            roleDescription: document.getElementById('roleDescription'),
+            roleBtn: document.getElementById('roleBtn'),
+            currentRoleName: document.getElementById('currentRoleName'),
+            roleModal: document.getElementById('roleModal'),
+            closeRoleModal: document.getElementById('closeRoleModal'),
+            roleName: document.getElementById('roleName'),
+            saveRoleBtn: document.getElementById('saveRoleBtn'),
+            cancelRoleBtn: document.getElementById('cancelRoleBtn'),
+            resetRoleBtn: document.getElementById('resetRoleBtn'),
+            
             // 模态框
             renameModal: document.getElementById('renameModal'),
             renameInput: document.getElementById('renameInput'),
@@ -123,6 +140,13 @@ class OpenRouterChat {
         this.elements.saveSettings.addEventListener('click', () => this.saveSettings());
         this.elements.cancelSettings.addEventListener('click', () => this.hideSettingsModal());
         
+        // 角色事件
+        this.elements.roleBtn.addEventListener('click', () => this.showRoleModal());
+        this.elements.closeRoleModal.addEventListener('click', () => this.hideRoleModal());
+        this.elements.saveRoleBtn.addEventListener('click', () => this.saveRole());
+        this.elements.cancelRoleBtn.addEventListener('click', () => this.hideRoleModal());
+        this.elements.resetRoleBtn.addEventListener('click', () => this.resetRole());
+        
         // 模态框事件
         this.elements.confirmRename.addEventListener('click', () => this.confirmRename());
         this.elements.cancelRename.addEventListener('click', () => this.hideRenameModal());
@@ -143,6 +167,148 @@ class OpenRouterChat {
         this.elements.settingsModal.addEventListener('click', (e) => {
             if (e.target === this.elements.settingsModal) this.hideSettingsModal();
         });
+        
+        this.elements.roleModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.roleModal) this.hideRoleModal();
+        });
+    }
+
+    // ==================== 角色管理 ====================
+    
+    getDefaultRole() {
+        return {
+            name: '默认助手',
+            description: '我是一个友好且有帮助的AI助手，可以回答各种问题并提供有用的信息和建议。'
+        };
+    }
+
+    getRoleTemplates() {
+        return {
+            default: {
+                name: '默认助手',
+                description: '我是一个友好且有帮助的AI助手，可以回答各种问题并提供有用的信息和建议。'
+            },
+            writer: {
+                name: '创意写手',
+                description: '我是一个专业的创意写作助手，擅长文案创作、故事编写、文章润色等各种写作任务。我会用富有创意和吸引力的语言来帮助你完成写作目标。'
+            },
+            analyst: {
+                name: '数据分析师',
+                description: '我是一个专业的数据分析专家，擅长数据解读、趋势分析、统计建模和商业洞察。我会用严谨的分析方法和清晰的逻辑来帮助你理解数据背后的含义。'
+            },
+            teacher: {
+                name: '耐心老师',
+                description: '我是一个耐心细致的教学专家，擅长解释复杂概念、循序渐进地教学、提供学习指导。我会根据你的理解程度调整教学方式，确保你能够真正掌握知识。'
+            }
+        };
+    }
+
+    selectRoleTemplate(templateKey) {
+        const template = this.roleTemplates[templateKey];
+        if (template) {
+            this.currentRole = { ...template };
+            this.updateRoleDisplay();
+            this.saveCurrentRole();
+            
+            // 更新模板按钮状态
+            this.updateTemplateButtons(templateKey);
+            
+            // 更新自定义表单
+            this.elements.roleName.value = this.currentRole.name;
+            this.elements.roleDescription.value = this.currentRole.description;
+        }
+    }
+
+    updateTemplateButtons(activeTemplate) {
+        const templateBtns = document.querySelectorAll('.template-btn');
+        templateBtns.forEach(btn => {
+            if (btn.dataset.template === activeTemplate) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    updateRoleDisplay() {
+        if (this.currentRole && this.elements.currentRoleName) {
+            this.elements.currentRoleName.textContent = this.currentRole.name;
+        }
+    }
+
+    showRoleModal() {
+        // 填充当前角色信息
+        this.elements.roleName.value = this.currentRole.name;
+        this.elements.roleDescription.value = this.currentRole.description;
+        
+        // 绑定模板按钮事件
+        this.bindTemplateButtons();
+        
+        // 显示模态框
+        this.elements.roleModal.style.display = 'flex';
+        
+        // 设置当前活跃的模板
+        this.setActiveTemplate();
+    }
+
+    bindTemplateButtons() {
+        const templateBtns = document.querySelectorAll('.template-btn');
+        templateBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.selectRoleTemplate(btn.dataset.template);
+            });
+        });
+    }
+
+    setActiveTemplate() {
+        // 检查当前角色是否匹配某个模板
+        const templateBtns = document.querySelectorAll('.template-btn');
+        templateBtns.forEach(btn => {
+            const template = this.roleTemplates[btn.dataset.template];
+            if (template && template.name === this.currentRole.name && template.description === this.currentRole.description) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    hideRoleModal() {
+        this.elements.roleModal.style.display = 'none';
+    }
+
+    saveRole() {
+        const roleName = this.elements.roleName.value.trim();
+        const roleDescription = this.elements.roleDescription.value.trim();
+        
+        if (!roleName || !roleDescription) {
+            this.showError('角色名称和描述不能为空');
+            return;
+        }
+        
+        this.currentRole = {
+            name: roleName,
+            description: roleDescription
+        };
+        
+        this.updateRoleDisplay();
+        this.saveCurrentRole();
+        this.hideRoleModal();
+        
+        this.addSystemMessage(`🎭 角色已更新为: ${roleName}`);
+    }
+
+    resetRole() {
+        this.currentRole = this.getDefaultRole();
+        this.updateRoleDisplay();
+        this.saveCurrentRole();
+        this.hideRoleModal();
+        
+        this.addSystemMessage('🎭 角色已重置为默认助手');
+    }
+
+    saveCurrentRole() {
+        localStorage.setItem('ai_role_setting', JSON.stringify(this.currentRole));
     }
 
     // ==================== API Key 和模型管理 ====================
@@ -532,7 +698,15 @@ class OpenRouterChat {
         // 构建消息历史 - 使用备忘录优化上下文
         let messages = [];
         
-        // 如果有备忘录，先添加备忘录作为系统消息
+        // 首先添加角色设定作为系统消息（优先级最高）
+        if (this.currentRole && this.currentRole.description) {
+            messages.push({
+                role: 'system',
+                content: `角色设定：${this.currentRole.description}\n\n请始终按照这个角色设定来回应用户的问题和请求。`
+            });
+        }
+        
+        // 如果有备忘录，添加备忘录作为系统消息
         if (conversation.memo) {
             messages.push({
                 role: 'system',
