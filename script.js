@@ -851,7 +851,7 @@ ${conversation.messages.map((msg, index) =>
 请将现有备忘录与新对话内容整合，生成一个完整的更新备忘录，保持简洁但包含重要细节。`;
             } else {
                 // 如果没有备忘录，总结当前所有消息（除了最后一条）
-                const messagesToSummarize = conversation.messages.slice(0, -1);
+                const messagesToSummarize = conversation.messages.slice(0, -this.memoSettings.keepRecentMessages);
                 summaryPrompt = `请将以下对话内容总结为一个简洁的备忘录，保留关键信息和上下文：
 
 ${messagesToSummarize.map((msg, index) => 
@@ -886,16 +886,19 @@ ${messagesToSummarize.map((msg, index) =>
             const memoContent = data.choices[0].message.content;
 
             // 保存新备忘录
-            const totalMessageCount = (conversation.memoMessageCount || 0) + conversation.messages.length - 1;
+            const totalMessageCount = (conversation.memoMessageCount || 0) + conversation.messages.length - this.memoSettings.keepRecentMessages;
             conversation.memo = memoContent;
             conversation.memoCreatedAt = new Date().toISOString();
             conversation.memoMessageCount = totalMessageCount;
             
-            // 关键修复：只保留最后一条消息
-            conversation.messages = conversation.messages.slice(-1);
+            // 只保留最近的消息
+            conversation.messages = conversation.messages.slice(-this.memoSettings.keepRecentMessages);
             
             this.saveConversations();
             this.updateMemoStatus();
+            
+            // 刷新聊天界面显示
+            this.refreshChatDisplay();
             
             this.addSystemMessage('📝 已自动生成对话备忘录，点击右上角备忘录按钮查看');
             this.updateStatus('备忘录生成完成');
@@ -904,6 +907,17 @@ ${messagesToSummarize.map((msg, index) =>
             console.error('生成备忘录失败:', error);
             this.showError(`生成备忘录失败: ${error.message}`);
             this.updateStatus('备忘录生成失败');
+        }
+    }
+
+    refreshChatDisplay() {
+        // 清空当前聊天显示
+        this.elements.chatMessages.innerHTML = '';
+        
+        // 重新加载当前会话的消息
+        const conversation = this.getCurrentConversation();
+        if (conversation) {
+            this.loadConversationMessages(conversation);
         }
     }
 
